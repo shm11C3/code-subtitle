@@ -53,6 +53,15 @@
         "category": "Code Subtitle"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codeSubtitle.show",
+          "when": "editorTextFocus && !editorHasMultipleSelections",
+          "group": "z_commands"
+        }
+      ]
+    },
     "keybindings": [
       {
         "command": "codeSubtitle.show",

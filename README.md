@@ -23,7 +23,7 @@ The package uses a local placeholder publisher. It has not been published to a m
 ## Example flow
 
 1. Select the code or comment you want to understand, or just leave the cursor on the line in question.
-2. Run `Code Subtitle: Show Subtitle`. Default shortcuts are `Alt+E` on Windows/Linux and `Ctrl+Alt+E` on macOS. Customize them in VS Code's Keyboard Shortcuts editor to suit your keyboard layout and existing bindings.
+2. Run `Code Subtitle: Show Subtitle` from the shortcut, the editor's right-click context menu, or the Command Palette. Default shortcuts are `Alt+E` on Windows/Linux and `Ctrl+Alt+E` on macOS. Customize them in VS Code's Keyboard Shortcuts editor to suit your keyboard layout and existing bindings.
 3. A short subtitle streams in near the end of the selection.
 4. The subtitle disappears when you continue reading and change the selection. Pressing `Esc` while it is visible also dismisses it.
 

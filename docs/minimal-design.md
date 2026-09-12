@@ -142,7 +142,7 @@ Disk persistence is outside the MVP. If it is considered later, decide separatel
 
 Do not make API keys, longer output, display method, context-line count, cache expiration, temperature, or similar items MVP settings. Treat output language and model as user settings so that repository settings cannot change them unintentionally.
 
-The primary command is `codeSubtitle.show` (Show Subtitle). Also provide `codeSubtitle.dismiss` (Dismiss Subtitle), `codeSubtitle.clearCache` (Clear Cache), and `codeSubtitle.chooseModel` (Choose Model), which re-opens the model picker and updates the remembered automatic choice without editing settings. The proposed shortcuts are Windows/Linux `Alt+E` and macOS `Ctrl+Alt+E`. Allow changes through the standard keybinding feature and test conflicts with IME, AltGr, accent input, and existing commands.
+The primary command is `codeSubtitle.show` (Show Subtitle), also exposed in the editor context menu (`editor/context`, group `z_commands`) for readers who prefer the mouse. Also provide `codeSubtitle.dismiss` (Dismiss Subtitle), `codeSubtitle.clearCache` (Clear Cache), and `codeSubtitle.chooseModel` (Choose Model), which re-opens the model picker and updates the remembered automatic choice without editing settings. The proposed shortcuts are Windows/Linux `Alt+E` and macOS `Ctrl+Alt+E`. Allow changes through the standard keybinding feature and test conflicts with IME, AltGr, accent input, and existing commands.
 
 Limit the `Esc` binding by subtitle state and editor focus, and confirm its priority against the existing behavior that closes completion candidates or other input UI. Do not build a custom detail panel or settings wizard.
 
