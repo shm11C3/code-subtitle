@@ -100,18 +100,18 @@ The core creates one `AbortController` per request. The adapter bridges that sha
 
 Do not include consent waiting in the generation timeout. For an unconsented first request, wait for `sendRequest` to resolve through VS Code's standard consent flow before arming the stream deadline. For an already-authorized request, arm the deadline when `sendRequest` starts. Initial-use measurements must still report consent and request latency separately, because that latency cannot always be strictly separated from `sendRequest` resolution. [LanguageModelChat API](https://code.visualstudio.com/api/references/vscode-api#LanguageModelChat)
 
-| Trigger                                                                  | Behavior                                                                                     |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| Run again while generating for the same target                           | Continue the current request; do not submit a duplicate                                      |
-| Start a different request                                                | Cancel the previous request, discard its display and update timer, and start with a new ID   |
-| Selection change or document edit                                        | Cancel and clear. Do not automatically submit the changed range                              |
-| Switch editors or close the document                                     | Cancel and clear. Even if the user returns, do not show it again until an explicit operation |
-| Scroll the target range out of view                                      | Keep the subtitle; scrolling within the same editor is reading, not moving on                |
-| `Esc`                                                                    | Cancel and clear only when the subtitle is preparing, generating, or visible                 |
-| Language or model setting change                                         | Cancel and clear, and invalidate caches for the old setting                                  |
-| 10–30 seconds after generation completes                                 | Clear the subtitle after `clamp(graphemes × 150 ms, 10 s, 30 s)`; cache expiry is separate   |
-| 10 seconds after the stream deadline is armed                            | Cancel the request and stream, and show brief timeout guidance                               |
-| Disable or shut down                                                     | Release the token, timers, events, decoration, and cache                                     |
+| Trigger                                        | Behavior                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Run again while generating for the same target | Continue the current request; do not submit a duplicate                                      |
+| Start a different request                      | Cancel the previous request, discard its display and update timer, and start with a new ID   |
+| Selection change or document edit              | Cancel and clear. Do not automatically submit the changed range                              |
+| Switch editors or close the document           | Cancel and clear. Even if the user returns, do not show it again until an explicit operation |
+| Scroll the target range out of view            | Keep the subtitle; scrolling within the same editor is reading, not moving on                |
+| `Esc`                                          | Cancel and clear only when the subtitle is preparing, generating, or visible                 |
+| Language or model setting change               | Cancel and clear, and invalidate caches for the old setting                                  |
+| 10–30 seconds after generation completes       | Clear the subtitle after `clamp(graphemes × 150 ms, 10 s, 30 s)`; cache expiry is separate   |
+| 10 seconds after the stream deadline is armed  | Cancel the request and stream, and show brief timeout guidance                               |
+| Disable or shut down                           | Release the token, timers, events, decoration, and cache                                     |
 
 Fragments or exceptions that arrive after cancellation must not touch a new subtitle, and an old `finally` block must not clear the state of a new request.
 
@@ -136,10 +136,10 @@ Disk persistence is outside the MVP. If it is considered later, decide separatel
 
 ## 8. Settings and controls
 
-| Proposed setting              | Default | Description                                                              |
-| ----------------------------- | ------- | ------------------------------------------------------------------------ |
-| `codeSubtitle.outputLanguage` | `auto`  | Uses `vscode.env.language`; can be overridden with any language tag      |
-| `codeSubtitle.model`          | `auto`  | Remembered choice within the default provider or an available model ID   |
+| Proposed setting              | Default | Description                                                            |
+| ----------------------------- | ------- | ---------------------------------------------------------------------- |
+| `codeSubtitle.outputLanguage` | `auto`  | Uses `vscode.env.language`; can be overridden with any language tag    |
+| `codeSubtitle.model`          | `auto`  | Remembered choice within the default provider or an available model ID |
 
 Do not make API keys, longer output, display method, context-line count, cache expiration, temperature, or similar items MVP settings. Treat output language and model as user settings so that repository settings cannot change them unintentionally.
 

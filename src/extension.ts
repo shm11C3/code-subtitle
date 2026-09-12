@@ -334,7 +334,10 @@ function showFirstUseDisclosure(context: vscode.ExtensionContext): void {
 }
 
 /** An empty cursor targets its whole line; anything else is submitted as selected. */
-function targetRanges(document: vscode.TextDocument, selections: SelectionRange[]): SelectionRange[] {
+function targetRanges(
+  document: vscode.TextDocument,
+  selections: SelectionRange[],
+): SelectionRange[] {
   const only = selections[0];
   if (selections.length !== 1 || only === undefined || !isEmptyRange(only)) {
     return selections;

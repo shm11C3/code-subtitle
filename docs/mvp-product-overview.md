@@ -45,7 +45,7 @@ Select the most useful responsibility, invariant, failure boundary, or concrete 
 
 | Feature                     | MVP decision                                                                                                          |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Launch                      | `codeSubtitle.show` via shortcut (`Shift+Alt+E`, macOS `Ctrl+Alt+E`; unverified on Windows/Linux hardware), the editor context menu, or the Command Palette |
+| Launch                      | `codeSubtitle.show` via shortcut (`Shift+Alt+E`, macOS `Ctrl+Alt+E`), the editor context menu, or the Command Palette |
 | Input                       | One non-whitespace-only selection, or the cursor's whole line when the selection is empty, in the desktop text editor |
 | Context                     | Selection, up to five adjacent lines each side, and optional bounded type/docs and one-hop same-workspace definitions |
 | Explanation and translation | Process according to the input in a single request; do not make an additional AI request solely for classification    |
@@ -56,7 +56,7 @@ Select the most useful responsibility, invariant, failure boundary, or concrete 
 | Configuration               | Output-language/model overrides and a semantic-context switch; bounded semantic context is enabled by default         |
 | AI use                      | VS Code Language Model API; no custom API key or custom backend                                                       |
 
-Readability for long lines and narrow split editors is an acceptance criterion for the rendering approach. Do not assume that a stable API can reserve an arbitrary two-line area; perform display validation at the beginning of implementation.
+The Windows/Linux shortcut avoids the `Alt+E` menu-bar mnemonic and has not been verified on real Windows/Linux hardware. Readability for long lines and narrow split editors is an acceptance criterion for the rendering approach. Do not assume that a stable API can reserve an arbitrary two-line area; perform display validation at the beginning of implementation.
 
 ## Excluded
 
