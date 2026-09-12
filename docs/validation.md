@@ -51,7 +51,7 @@ Synthetic examples reproduced rejection of a 104-grapheme Japanese explanation a
 
 After recovering local disk space, all 84 tests, TypeScript checking, lint, and formatting passed on 2026-09-12.
 
-The revised VSIX was packaged and reinstalled in the normal VS Code profile. Installed `policy.js`, `session.js`, `vscode-view.js`, and `extension.js` matched the build byte-for-byte. Reload an existing VS Code window to activate the revision.
+The revised VSIX was packaged and reinstalled in the normal VS Code profile. Installed `policy.js`, `session.js`, `vscode-view.js`, and `extension.js` matched the build byte-for-byte. Local `.claude` worktrees are excluded from the package; the inspected archive contains 15 files (28.3 KB). Reload an existing VS Code window to activate the revision.
 
 ## Acceptance still requiring direct observation
 

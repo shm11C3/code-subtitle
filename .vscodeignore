@@ -1,6 +1,7 @@
 .git/**
 .github/**
 .vscode/**
+.claude/**
 .test-host/**
 node_modules/**
 src/**
