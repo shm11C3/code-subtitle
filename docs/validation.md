@@ -78,11 +78,33 @@ On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 99 test
 
 After merging `main` with the immediate UX improvements into this branch, the conflicting additions were combined (inline failure guidance keeps the request input while the observer reports the failure; the reading-time expiry and the `cleared` event share `showUntilExpiry`). On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 121 tests, and `npm run package` passed on the merged tree, and the extension-host smoke passed again from a short profile path.
 
+## Diff editor and PR review validation
+
+Issue #3 is implemented as a validation slice. The renderer uses the active modified-side `TextEditor` supplied by VS Code, so it follows the same zero-width end-of-line decoration path in regular editors and diff editors. No diff-specific request hint is added: the bounded prompt already describes only the selected code and nearby context, and no live evaluation evidence currently shows that a diff label improves the explanation.
+
+Deterministic review-URI coverage verifies that `git:`, `pr:`, and `vscode-vfs:` inputs return an empty semantic context without invoking any provider command. This keeps review views responsive and falls back to the existing selection-plus-adjacent-lines prompt. The existing short-term cache path remains available when `workspace.getWorkspaceFolder` is unavailable.
+
+The real extension-host smoke opens a synthetic `file:` diff and renders a subtitle on the modified line in both modes:
+
+| Matrix case                             | Automated result                             | Direct visual result                                           |
+| --------------------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
+| Side-by-side, light theme               | Passed on macOS arm64 / VS Code 1.135.0      | Pending: requires an unlocked desktop                          |
+| Inline, light theme                     | Passed with `CODE_SUBTITLE_DIFF_MODE=inline` | Pending: requires an unlocked desktop                          |
+| Side-by-side, dark theme                | API/non-mutation path is covered             | Pending: run the visual check with a dark theme                |
+| Inline, dark theme                      | API/non-mutation path is covered             | Pending: run the visual check with a dark theme                |
+| Side-by-side, high contrast             | API/non-mutation path is covered             | Pending: run the visual check with a high-contrast theme       |
+| Inline, high contrast                   | API/non-mutation path is covered             | Pending: run the visual check with a high-contrast theme       |
+| `git:`, `pr:`, `vscode-vfs:` review URI | Provider-skip regression tests passed        | Requires the Git/GitHub PR provider to open a live review view |
+
+The host smoke also checks that the modified document text, version, dirty state, and selection are unchanged. It does not claim pixel-level readability, screen-reader support, GitHub Pull Requests integration, or Windows/Linux support; record those observations separately before describing diff editors as fully supported.
+
+The visual run was not completed in this session because the macOS desktop was locked and could not be unlocked by the available UI binding.
+
 ## Acceptance still requiring direct observation
 
 - Inline failure guidance readability and the `Shift+Alt+E` binding on Windows/Linux.
 
-- Subtitle readability on long lines, narrow splits, wrapped lines, themes, and zoom.
+- Subtitle readability on long lines, narrow splits, wrapped lines, diff editors, themes, and zoom.
 - Live-generation command interaction, Undo history, keyboard conflicts and dismissal precedence.
 - Screen-reader behavior, right-to-left language layout, Windows/Linux, and other excluded environments.
 - Actual Copilot availability, first-use consent, translation accuracy, and preservation of negation/conditions.

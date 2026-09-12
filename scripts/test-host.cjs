@@ -19,7 +19,8 @@ if (semanticHost !== "builtin" && semanticHost !== "native") {
   );
   process.exitCode = 2;
 } else {
-  const testHostRoot = path.join(hostRoot, ".test-host");
+  const testHostRoot =
+    process.env.CODE_SUBTITLE_TEST_HOST_ROOT || path.join(hostRoot, ".test-host");
   const workspaceRoot = path.join(testHostRoot, "workspace");
   const userDataDir = path.join(testHostRoot, `user-data-${semanticHost}`);
   const extensionsDir = path.join(testHostRoot, `extensions-${semanticHost}`);
@@ -28,7 +29,14 @@ if (semanticHost !== "builtin" && semanticHost !== "native") {
   fs.mkdirSync(userSettingsDir, { recursive: true });
   fs.writeFileSync(
     path.join(userSettingsDir, "settings.json"),
-    `${JSON.stringify({ "js/ts.experimental.useTsgo": semanticHost === "native" }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        "js/ts.experimental.useTsgo": semanticHost === "native",
+        "diffEditor.renderSideBySide": process.env.CODE_SUBTITLE_DIFF_MODE !== "inline",
+      },
+      null,
+      2,
+    )}\n`,
     "utf8",
   );
   fs.mkdirSync(extensionsDir, { recursive: true });
