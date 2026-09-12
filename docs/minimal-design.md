@@ -105,7 +105,8 @@ Do not include consent waiting in the generation timeout. For an unconsented fir
 | Run again while generating for the same target                           | Continue the current request; do not submit a duplicate                                      |
 | Start a different request                                                | Cancel the previous request, discard its display and update timer, and start with a new ID   |
 | Selection change or document edit                                        | Cancel and clear. Do not automatically submit the changed range                              |
-| Switch editors, move the target range out of view, or close the document | Cancel and clear. Even if the user returns, do not show it again until an explicit operation |
+| Switch editors or close the document                                     | Cancel and clear. Even if the user returns, do not show it again until an explicit operation |
+| Scroll the target range out of view                                      | Keep the subtitle; scrolling within the same editor is reading, not moving on                |
 | `Esc`                                                                    | Cancel and clear only when the subtitle is preparing, generating, or visible                 |
 | Language or model setting change                                         | Cancel and clear, and invalidate caches for the old setting                                  |
 | 10 seconds after generation completes                                    | Clear the subtitle. Manage the cache expiration separately                                   |

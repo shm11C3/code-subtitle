@@ -39,6 +39,11 @@ A further regression test confirms that a dependency edit during an uncooperativ
 - RED: extension tests required an empty single selection to submit the cursor's whole line, the subtitle to stay while the cursor does not move and clear when it does, and a whitespace-only line to report the selection failure without a request. The first two failed because an empty selection was rejected as a selection error.
 - GREEN: `show` widens an empty single selection to the full line before building the snapshot, and the active request records the original editor selection so selection-change comparisons are made against the cursor rather than the widened range. `createInput` is unchanged, and the keybinding no longer requires `editorHasSelection`.
 
+## Scrolling keeps the subtitle
+
+- RED: an extension test placed the anchor line outside the editor's visible ranges, required the subtitle to render, and required a visible-range change not to clear it. The subtitle was cancelled because `isCurrent` checked visibility and a visible-range handler dismissed it.
+- GREEN: the visible-range handler and the visibility check are removed. Selection change, edit, editor switch, `Esc`, and expiry remain the dismissal triggers.
+
 ## Parallel iteration
 
 `node scripts/test-slice.cjs <name>` transpiles and runs one role's behavioral test file independently. It intentionally skips type checking during the local RED/GREEN iteration so another role's intermediate type errors do not block unrelated behavior tests. Final acceptance requires the complete `npm run check` and `npm test`; a slice result alone is insufficient.

@@ -128,7 +128,8 @@ export function activate(context: vscode.ExtensionContext): void {
     ) {
       return false;
     }
-    return isVisible(editor, input.anchorLine);
+    // Scrolling the anchor out of view is still reading; only the triggers above dismiss.
+    return true;
   };
 
   const session = new SubtitleSession({ gateway, view, cache, isCurrent });
@@ -255,15 +256,6 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (activeRequest && editor !== activeRequest.editor) {
-        dismissActive();
-      }
-    }),
-    vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
-      if (
-        activeRequest &&
-        event.textEditor === activeRequest.editor &&
-        !isVisible(event.textEditor, activeRequest.input.anchorLine)
-      ) {
         dismissActive();
       }
     }),
@@ -395,11 +387,5 @@ function sameRange(left: SelectionRange, right: SelectionRange): boolean {
     left.start.character === right.start.character &&
     left.end.line === right.end.line &&
     left.end.character === right.end.character
-  );
-}
-
-function isVisible(editor: vscode.TextEditor, anchorLine: number): boolean {
-  return editor.visibleRanges.some(
-    (range) => range.start.line <= anchorLine && anchorLine <= range.end.line,
   );
 }

@@ -201,6 +201,7 @@ function fixture(options: { semanticContext?: boolean; response?: string; text?:
     notifications,
     displays,
     selectionChanged,
+    visibleChanged,
     documentChanged,
     foldersChanged,
     rootUri,
@@ -522,6 +523,19 @@ test("a whitespace-only current line reports the selection failure without a req
     assert.equal(app.sends, 0);
     assert.equal(app.text, "");
     assert.equal(app.notifications.length, 1);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("scrolling the anchor line out of view keeps the subtitle", async () => {
+  const app = fixture();
+  try {
+    app.editor.visibleRanges = [{ start: { line: 40 }, end: { line: 80 } }];
+    await app.command("show");
+    assert.equal(app.text, "↳ Returns the current value.");
+    app.visibleChanged.fire({ textEditor: app.editor });
+    assert.equal(app.text, "↳ Returns the current value.");
   } finally {
     app.dispose();
   }
