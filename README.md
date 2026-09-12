@@ -1,86 +1,94 @@
 # Code Subtitle
 
-**コードを読む流れの中で、意味を一瞬でつかむ。**
+**Grasp meaning in an instant while reading code.**
 
-`code-subtitle` は、OSSや未知のコードを読む非英語圏の開発者向けのVS Code拡張です。選択したコードの短いAI解説やコメントの翻訳を、コード近傍に字幕のように表示します。
+`code-subtitle` is a VS Code extension for experienced engineers reading OSS or reviewing unfamiliar code. It displays one short engineering insight for selected code, or a translation of a comment, near the code in the reader's preferred language.
 
-現在はMVPの企画・設計段階です。このリポジトリにはドキュメントのみがあり、インストール可能な拡張や以下の操作はまだ実装されていません。
+An initial local preview is implemented. It includes subtitle commands, streamed rendering, request cancellation, bounded input, and in-memory caching. Automated tests and a VS Code extension-host smoke test pass; visual acceptance, real-model quality, and performance evaluation remain open. See the [validation record](docs/validation.md).
 
-## 提供する価値
+## Try the preview
 
-- エディタから視線を移さず、読解に戻れる。
-- 構文の逐語説明より、「この処理が何のためにあるか」を短く伝える。
-- VS Codeの表示言語を既定に、コメントや説明を読み慣れた言語で理解できる。
-- APIキーの入力、長いプロンプト、回答履歴の管理を日常操作に持ち込まない。
-- ソースコードを変更せず、必要な間だけ字幕を表示する。
+Use desktop VS Code 1.135 or newer and Node.js 22 or newer. Run `npm ci`, `npm test`, and `npm run package`, then use **Extensions: Install from VSIX…** to install `code-subtitle-0.0.1.vsix`. For a development host, open Run and Debug and launch **Run Code Subtitle**. See [development instructions](docs/development.md).
 
-## 使い方イメージ
+The package uses a local placeholder publisher. It has not been published to a marketplace, and an OSS license has not yet been selected.
 
-1. 理解したいコードやコメントを選択する。
-2. `Code Subtitle: Show Subtitle` を実行する。ショートカット案はWindows/Linuxが `Alt+E`、macOSが `Ctrl+Alt+E`。実装時にOS・配列・既存割り当てとの競合を確認する。
-3. 選択範囲の末尾付近に短い字幕がストリーミング表示される。
-4. 読み進めて選択を変えると字幕が消える。表示中の `Esc` でも消せる。
+## Value
 
-たとえば、次のコードを選択した場合：
+- Return to reading without moving your eyes away from the editor.
+- Connect code to the responsibility, invariant, failure boundary, or tradeoff that matters when reading or changing it.
+- Use VS Code's display language by default so comments and explanations can be understood in a familiar language.
+- Keep API-key entry, long prompts, and answer-history management out of everyday use.
+- Show subtitles only when needed, without changing source code.
+
+## Example flow
+
+1. Select the code or comment you want to understand.
+2. Run `Code Subtitle: Show Subtitle`. Default shortcuts are `Alt+E` on Windows/Linux and `Ctrl+Alt+E` on macOS. Customize them in VS Code's Keyboard Shortcuts editor to suit your keyboard layout and existing bindings.
+3. A short subtitle streams in near the end of the selection.
+4. The subtitle disappears when you continue reading and change the selection. Pressing `Esc` while it is visible also dismisses it.
+
+For example, when the following code is selected:
 
 ```ts
-await mutex.runExclusive(async () => {
-  await update();
-});
+const id = ++activeId;
+const value = await load();
+if (id !== activeId) return;
+render(value);
 ```
 
 ```text
-↳ 同時更新による競合を防ぐため、更新処理を一度に一つだけ実行する。
+↳ The request ID gates rendering so a slower, superseded load cannot overwrite the current view.
 ```
 
-コメントだけを選択した場合：
+When only a comment is selected:
 
 ```ts
 // Do not retry non-idempotent requests.
 ```
 
 ```text
-↳ 冪等でないリクエストは再試行しない。
+↳ Do not retry non-idempotent requests.
 ```
 
-これらは表示内容の例です。原文への挿入や置換は行いません。理由を読み取れないコードでは、作者の意図を推測で断言しません。
+These are examples of displayed content. The extension does not insert into or replace the original text. When the reason cannot be inferred from the code, it does not present the author's intent as fact.
 
-## MVPの範囲
+## MVP scope
 
-| 含めるもの | 方針 |
-| --- | --- |
-| 選択 → ショートカット → 字幕 | 明示操作時のみ生成。単一の選択範囲を対象にする |
-| 短い解説・翻訳 | コードはWhy中心、コメントのみなら意味を保った短い翻訳 |
-| コード近傍の1〜2行 | MVPの基準はDecorationによる1行。2行化は表示検証後に判断する |
-| ストリーミング | 全文の完成を待たず、最初の内容から表示する |
-| 一時的な字幕 | 選択変更・編集・エディタ切替・`Esc`・表示期限で消去する |
-| キャンセルと再利用 | 古い要求を中止し、短期・ワークスペース単位のメモリキャッシュを使う |
-| 設定の最小化 | 出力言語は自動、モデル選択も自動を基本とする |
+| Included                         | Policy                                                                                                            |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Selection → shortcut → subtitle  | Generate only after an explicit action; target one selection                                                      |
+| Short explanation or translation | Surface one grounded engineering insight for code; translate comments while preserving their meaning              |
+| One or two lines near the code   | The MVP baseline is one line rendered with a Decoration; decide whether to use two lines after display validation |
+| Streaming                        | Start displaying from the first content instead of waiting for the full response                                  |
+| Temporary subtitle               | Clear it on selection change, edit, editor switch, `Esc`, or expiry                                               |
+| Cancellation and reuse           | Cancel old requests and use a short-lived, workspace-scoped memory cache                                          |
+| Minimal configuration            | Use automatic output language and automatic model selection by default                                            |
 
-日本語では原則1文・100文字以内を目安とします。短さよりも否定・条件・注意事項の正確さを優先し、収まらない入力は選択を小さくしてもらいます。
+For Japanese, the default target is one sentence and at most 100 characters. Accuracy of negation, conditions, and caveats takes priority over brevity; if the result does not fit, ask the user to make the selection smaller.
 
-## 非目標
+## Non-goals
 
-- Chat、詳細パネル、Hoverでの長文解説、会話履歴。
-- コード生成・補完・修正、翻訳のファイルへの書き戻し。
-- リポジトリ全体の索引作成、関連ファイルの自動探索、常時・先回り生成。
-- 自動レビュー、網羅的な構文授業、長いコメントの全文翻訳。
-- 独自AIバックエンド、拡張独自のAPIキー設定、キャッシュの永続保存。
+- Chat, a detailed panel, long explanations in Hover, and conversation history.
+- Code generation, completion, or modification, and writing translations back to files.
+- Indexing the entire repository, automatically searching related files, and continuous or proactive generation.
+- Automated review, comprehensive syntax lessons, and full translation of long comments.
+- A custom AI backend, extension-specific API-key settings, and persistent cache storage.
 
-## 技術方針と利用前提
+## Technical direction and usage assumptions
 
-TypeScriptとVS Codeの安定版APIを利用し、VS Code Language Model APIでモデルへ要求を送ります。字幕はText Editor Decorationで描画し、ソース編集APIは使いません。要求ごとの `CancellationToken` と識別子で、キャンセル後の遅い応答も破棄します。
+The extension uses TypeScript and stable VS Code APIs, and sends requests through the VS Code Language Model API. Subtitles use Text Editor Decorations without source-editing APIs. Each request has a cancellation signal and an identifier so that late responses after cancellation are discarded. In this preview, automatic model selection uses a one-time picker of available Copilot models; no unmeasured speed ranking is assumed.
 
-「APIキー不要」は、Code Subtitle独自のAPIキー登録が不要という意味です。MVPの標準経路はVS Codeで利用できるGitHub Copilot提供モデルとし、利用権限・サインイン・初回の拡張への同意・利用枠が必要になる場合があります。無条件の無料利用やオフライン動作を約束するものではありません。[VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/ai/language-model)
+“No API key required” means that Code Subtitle does not require registration of its own API key. The standard MVP path is a GitHub Copilot-provided model available in VS Code, so usage permission, sign-in, initial consent for the extension, and an available quota may be required. This does not promise unconditional free use or offline operation. [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/ai/language-model)
 
-明示実行時に選択内容と前後最大5行ずつの文脈をモデルへ送信します。ローカル実行を保証するものではなく、データの扱いはモデル提供元と組織の設定に依存します。コード・応答・ファイルパスを拡張のログやテレメトリーへ保存・送信せず、キャッシュはメモリ内に限定します。
+On explicit execution, the selected content and up to five surrounding lines on each side are sent to the model. The extension does not guarantee local execution; data handling depends on the model provider and organization settings. The extension does not save or send code, responses, or file paths through its logs or telemetry, and the cache is limited to memory.
 
-速度はTTFE（Time To First Explanation：最初に意味を理解できる字幕までの時間）を重視します。同意済み・拡張起動済み・キャッシュミスの条件で、**有用な字幕の表示まで中央値1秒以内、完了まで中央値2秒以内**を目標にします。数値は未測定の目標であり、保証ではありません。初回・遅い通信・キャッシュヒットは分けて測定します。
+Speed is measured primarily by TTFE (Time To First Explanation: the time until the first subtitle that makes the meaning understandable). With consent granted, the extension already running, and a cache miss, the targets are **a median of no more than one second until a useful subtitle appears and a median of no more than two seconds until completion**. These are unmeasured targets, not guarantees. First use, slow connections, and cache hits will be measured separately.
 
-## ドキュメント
+## Documentation
 
-- [MVPのプロダクト概要](docs/mvp-product-overview.md)：対象ユーザー、体験、範囲、受け入れ基準。
-- [最低限の設計](docs/minimal-design.md)：API、描画方式、キャンセル、キャッシュ、プライバシー、性能測定。
-- [プロダクト方針](docs/product-principles.md)：機能や仕様を判断するための原則。
+- [MVP product overview](docs/mvp-product-overview.md): target users, experience, scope, and acceptance criteria.
+- [Minimal design](docs/minimal-design.md): APIs, rendering approach, cancellation, caching, privacy, and performance measurement.
+- [Product principles](docs/product-principles.md): principles for deciding features and specifications.
+- [Output quality](docs/output-quality.md): examples and evaluation criteria for OSS reading and human code review.
 
-製品の判断軸はプロダクト方針、MVPの範囲はプロダクト概要、技術上の詳細と数値は最低限の設計を正とします。READMEはその要約です。
+The product principles are authoritative for product decisions, the product overview is authoritative for MVP scope, and the minimal design is authoritative for technical details and numeric targets. The README is a summary of them.

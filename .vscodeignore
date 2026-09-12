@@ -1,0 +1,16 @@
+.git/**
+.github/**
+.vscode/**
+.test-host/**
+node_modules/**
+src/**
+test/**
+dist/test/**
+**/*.map
+tsconfig.json
+package-lock.json
+docs/**
+!docs/extension-readme.md
+scripts/**
+README.md
+.gitignore

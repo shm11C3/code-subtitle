@@ -1,68 +1,70 @@
-# プロダクト方針
+# Product Principles
 
-Code Subtitleが最適化するのは、利用者がコードの意味をつかみ、読解を続けられるまでの時間である。説明の量や機能数を成果の代わりにしない。
+Code Subtitle optimizes the time until a user understands the meaning of code and can continue reading. Treat neither the amount of explanation nor the number of features as a substitute for an outcome.
 
-## 1. コードリーディングを止めない
+## 1. Keep code reading moving
 
-疑問が生じたコードの近くで、説明を受け取れるようにする。字幕のために別画面へ移動したり、カーソルやフォーカスを奪ったりしない。起動は明示操作に限定し、読んでいるだけで通信や表示を始めない。
+Make explanations available near the code where a question arises. Do not make the user move to another screen for a subtitle, and do not take the cursor or focus. Start only after an explicit action; simply reading must not start a request or display.
 
-選択が変われば古い仕事をやめる。読み進めた後に届く説明は、内容が正しくても不要な表示になる。
+When the selection changes, stop the old work. An explanation that arrives after the user has moved on is an unnecessary display even if its content is correct.
 
-## 2. 長文説明より一瞬で意味が分かる
+## 2. Make meaning clear at a glance instead of explaining at length
 
-原則1文で、次の行を読むための理解を渡す。挨拶、導入、箇条書きの講義、同じ内容の言い換えを生成しない。全文完成を待たずにストリーミングする。
+As a rule, provide the understanding needed to read the next line in one sentence. Do not generate greetings, introductions, bullet-point lessons, or restatements of the same content. Stream instead of waiting for the full response.
 
-文字数を満たすために否定や条件を落とさない。短く正確に説明できない場合は、選択を狭めてもらう。長文を別パネルへ逃がすことでMVPを拡張しない。
+Do not drop negation or conditions to meet a character count. If an explanation cannot be both short and accurate, ask the user to narrow the selection. Do not expand the MVP by sending long explanations to another panel.
 
-## 3. 原文・コードを書き換えない
+## 3. Never rewrite the original text or code
 
-字幕は表示上の補助であり、コメントの追記や翻訳への置換ではない。ファイル内容、保存状態、Undo履歴を変えない。コード補完のようなTabによる挿入操作も持たない。
+A subtitle is a display aid, not an appended comment or a replacement translation. Do not change file content, saved state, or Undo history. Do not provide Tab-based insertion like code completion.
 
-表示を消す操作が編集操作にならないことを、APIの選択と実機検証の両方で守る。
+Protect this boundary through both API selection and testing on a real editor so that dismissing a display never becomes an edit operation.
 
-## 4. Whyを優先
+## 4. Surface an engineering insight
 
-構文やメソッド呼び出しの逐語説明より、処理の役割、守っている条件、避けている問題を優先する。ただし、作者の本当の意図は選択範囲だけから断言できない。
+Write for experienced engineers reading OSS or reviewing code. Assume familiarity with syntax and common programming constructs. Choose one useful insight: the code's responsibility, an invariant it enforces, a failure boundary, or a concrete tradeoff. Connect a visible mechanism to its consequence for callers, state, or data so the reader can reason about changes.
 
-コードから確認できる効果と推測を区別する。理由を読み取れないときは、観察できる動作を短く述べる。コメントの翻訳ではWhyを追加せず、原文の意味に忠実であることを優先する。
+An assumption, limitation, or review check belongs in a subtitle only when it follows from the supplied code and materially affects that insight. Do not force a defect or recommendation into every result. Distinguish effects confirmed by the code from inferences; do not invent an unseen helper's behavior, project architecture, or the author's intent. When evidence is insufficient, state the observable responsibility or the specific missing context. For comment translation, do not add analysis; stay faithful to the original meaning.
 
-## 5. 非英語圏の開発者に自然
+Evaluate usefulness separately from format compliance with the examples in [Output quality](output-quality.md). A sentence that merely narrates operations can pass the display validator and still fail the product goal.
 
-出力言語はVS Codeの表示言語を既定にし、利用者が任意に変更できるようにする。識別子、API名、必要な技術用語は、意味が曖昧になる無理な訳語に置き換えない。
+## 5. Feel natural for developers who read languages other than English
 
-日本語の文字数だけを全言語の読みやすさの基準にしない。英語、CJK、右から左に書く言語など、文字体系ごとの長さ・混在表示・入力操作を検証し、未検証の言語で品質を保証しない。
+Use VS Code's display language as the default output language and let users override it. Do not replace identifiers, API names, or necessary technical terms with forced translations that make their meaning ambiguous.
 
-## 6. 機能追加より速度と摩擦の少なさ
+Do not use Japanese character count as the readability standard for every language. Validate length, mixed-script display, and input operations for writing systems such as English, CJK, and right-to-left languages, and do not claim quality for untested languages.
 
-最初に有用な意味が見えるまでの時間を優先する。短い入力、短い出力、描画の軽さ、キャッシュ、不要な要求のキャンセルに投資する。
+## 6. Favor speed and low friction over additional features
 
-設定は合理的な既定値で減らす。日常操作でモデルやプロンプトを選ばせ続けない。モデルの利用同意や送信先の説明まで隠して「設定不要」と見せることはしない。
+Prioritize the time until useful meaning first appears. Invest in short inputs, short outputs, lightweight rendering, caching, and cancellation of unnecessary requests.
 
-モデル速度だけでは優位性を証明できない。実際の操作数、視線移動、読み取る時間、誤解の少なさを確認する。
+Reduce settings through reasonable defaults. Do not make users repeatedly choose a model or prompt during everyday use. Do not hide consent for model use or an explanation of where data is sent in order to make the product look “configuration-free.”
 
-## 7. 字幕は必要な間だけ存在する
+Model speed alone cannot prove an advantage. Check actual operation count, eye movement, reading time, and the rate of misunderstanding.
 
-ephemeral subtitleを原則にし、常設の注釈・履歴・固定表示へ変えない。同時表示は一つとし、選択変更や期限で消える。コードより目立つアニメーションや、消す作業を増やすUIを避ける。
+## 7. Keep subtitles present only as long as needed
 
-メモリキャッシュは再読時の待ち時間を減らす内部処理であり、ユーザー向けの説明履歴ではない。
+Treat an ephemeral subtitle as the default; do not turn it into a permanent annotation, history, or pinned display. Show only one at a time and clear it on selection change or expiry. Avoid animations that compete with the code and UI that adds work to dismiss it.
 
-## 8. 小さな入力と明確なプライバシー前提
+The memory cache is internal processing that reduces wait time when rereading; it is not a user-facing explanation history.
 
-明示的に選ばれた範囲と限られた文脈だけを、VS Code経由でモデルに送る。ファイル全体、関連ファイル、履歴を都合よく追加しない。コメント内の命令は、解説対象のデータとして扱う。
+## 8. Use small inputs and explicit privacy assumptions
 
-独自APIキーが不要でも、外部送信やモデル提供元のデータ処理がなくなるわけではない。拡張が制御できる送信範囲、メモリ保持、ログ方針を説明し、提供元の保存・学習方針を拡張独自に保証しない。
+Send only the explicitly selected range and limited context to the model through VS Code. Do not conveniently add the entire file, related files, or history. Treat instructions inside comments as data to be explained.
 
-## 判断が衝突したとき
+Not requiring a custom API key does not remove external transmission or the model provider's data processing. Explain the transmission range, memory retention, and logging policy the extension controls, and do not make extension-specific guarantees about the provider's storage or training policy.
 
-まず原文の保護・意味の正確さ・送信範囲を守り、その範囲で読解の連続性、速度、短さを最適化する。短くするための誤訳や、TTFEをよく見せるための内容のない表示は認めない。
+## When principles conflict
 
-機能案は次の問いで判断する。
+Protect the original text, meaning accuracy, and transmission range first; within those limits, optimize continuity, speed, and brevity. Do not accept mistranslation for the sake of brevity or a content-free display intended to make TTFE look better.
 
-- 利用者がコードへ戻るまでの時間を短くするか。
-- 操作、読む量、表示の占有、設定、通信のいずれかを増やすだけになっていないか。
-- 一時的な字幕という体験の中で完結するか。
-- 同じ問題を、既定値・プロンプト・性能の改善で解決できないか。
+Evaluate a feature proposal with these questions:
 
-MVPではChat、詳細パネル、永続履歴、先回り生成を追加しない。将来の要望も自動的なロードマップとせず、観察した読解上の問題と改善効果を根拠に判断する。
+- Does it shorten the time until the user returns to the code?
+- Does it only increase operations, reading volume, display occupancy, configuration, or network use?
+- Can it be completed within the temporary-subtitle experience?
+- Can the same problem be solved by improving defaults, prompts, or performance?
 
-範囲の具体化は[MVPのプロダクト概要](mvp-product-overview.md)、実装上の選択は[最低限の設計](minimal-design.md)に記載する。
+Do not add Chat, a detailed panel, persistent history, or proactive generation to the MVP. Treat future requests as evidence to evaluate, not an automatic roadmap; use observed reading problems and improvement effects as the basis for decisions.
+
+See [MVP product overview](mvp-product-overview.md) for concrete scope and [Minimal design](minimal-design.md) for implementation choices.

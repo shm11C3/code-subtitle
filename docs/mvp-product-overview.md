@@ -1,88 +1,90 @@
-# MVPのプロダクト概要
+# MVP Product Overview
 
-状態：設計案。実装・性能測定は未着手。
+Status: approved MVP scope with an initial local implementation. Automated contract checks are available; manual UX, real-model quality, and performance acceptance remain pending. See [validation](validation.md).
 
-## 解決したい課題
+## Problem to solve
 
-非英語圏の開発者がOSSや未知のコードを読むとき、短い疑問を解消するためにChatへ移動し、文脈を入力し、長い説明を読むと、コードリーディングの流れが途切れる。英語コメントの意味を確かめたいだけの場面でも同じ摩擦が生じる。
+When developers who read OSS or unfamiliar code in a language other than their own move to Chat to resolve a small question, enter context, and read a long explanation, the flow of code reading is interrupted. The same friction appears when they only need to check the meaning of an English comment.
 
-Code Subtitleは、疑問を持った場所で、次の行を読むために必要な意味だけを短く返す。高速なAI呼び出しに加え、操作・視線移動・読む量を減らすことで理解までの時間を短くする。
+Code Subtitle returns only the meaning needed to read the next line, right where the question arises. Along with fast AI calls, reducing operations, eye movement, and reading volume shortens the time until understanding.
 
-## 対象ユーザーと利用場面
+## Target users and situations
 
-- OSSの実装を調査し、見慣れない処理の役割をつかみたい開発者。
-- 初めて触るコードベースで、条件分岐・後始末・排他制御などの目的を確かめたい開発者。
-- 英語コメントの条件や注意事項を、読み慣れた言語で素早く理解したい開発者。
+- Experienced engineers investigating an OSS implementation who need to understand its responsibilities, invariants, and tradeoffs.
+- Code reviewers who want to identify the conditions and failure boundaries that matter when changing a selected piece of code.
+- Developers who want to quickly understand the conditions and caveats in English comments in a familiar language.
 
-コードの基礎を一から教えること、ファイル全体を解説すること、設計意図を履歴調査で証明することは対象外とする。
+Teaching code fundamentals from the beginning, explaining an entire file, and proving design intent through history research are out of scope.
 
-## 中心となる体験
+## Core experience
 
 ```text
-選択 → ショートカット → 選択末尾付近に短い字幕 → そのまま読解を続ける
+Select → shortcut → short subtitle near the end of the selection → continue reading
 ```
 
-字幕は同時に一つだけ表示する。選択だけでは通信しない。生成中に別のコードを選択したら、進行中の要求と字幕を消す。新しい選択については、次の明示操作まで生成しない。
+Only one subtitle is displayed at a time. A selection alone does not make a request. If a different piece of code is selected while generation is in progress, cancel the active request and clear the subtitle. Do not generate for the new selection until the next explicit action.
 
-生成完了後は最大10秒で消去する。`Esc`、選択変更、対象文書の編集、エディタ切替、対象範囲が画面外になった場合は先に消す。履歴・固定表示・コピー専用UIは設けない。
+Clear the subtitle within at most 10 seconds after generation completes. Clear it first when `Esc` is pressed, the selection changes, the target document is edited, the editor changes, or the target range leaves the viewport. Do not provide history, pinning, or a copy-only UI.
 
-## 出力の約束
+## Output contract
 
-| 入力 | 出力 |
-| --- | --- |
-| コード | 目的・役割・避けている問題を原則1文で説明する |
-| コメントのみ | 否定・条件・注意事項を保った短い翻訳を返す |
-| コードとコメントの混在 | コードの役割を中心に説明し、コメントを文脈として扱う |
-| 意図が不明なコード | 不確かさを短く示し、観察できる動作だけを伝える |
+| Input                      | Output                                                                                   |
+| -------------------------- | ---------------------------------------------------------------------------------------- |
+| Code                       | Connect a visible mechanism to one engineering consequence, normally in one sentence     |
+| Comments only              | Return a short translation that preserves negation, conditions, and caveats              |
+| Code and comments together | Focus on the role of the code and treat comments as context                              |
+| Code with unclear intent   | State the observable responsibility or specific missing context without inventing intent |
 
-日本語は原則100文字以内。他言語も一読できる1文を目指し、表示の上限は[最低限の設計](minimal-design.md)で定める。コメントを短くするために禁止事項や条件を落とさない。短い翻訳に収まらなければ、選択を小さくする案内に切り替える。
+Japanese output should normally be at most 100 characters. For other languages, aim for one sentence that can be understood at a glance; the display limit is defined in [Minimal design](minimal-design.md). Do not drop prohibitions or conditions to make a comment shorter. If a short translation does not fit, switch to guidance asking the user to make the selection smaller.
 
-コード例：`cache.get(key) ?? compute()` に対しては「キャッシュに値がある場合は再利用し、なければ計算する。」のように返す。`compute()` が純粋関数か、計算結果が保存されるかなど、見えていない性質を付け足さない。
+For `cache.get(key) ?? compute()`, an illustrative subtitle is “Only null or undefined triggers computation, so cached false or zero values remain valid hits.” This identifies a consequential boundary rather than narrating the branch. Do not add unseen properties such as whether `compute()` is pure or whether its result is stored.
 
-## MVPの機能範囲
+Select the most useful responsibility, invariant, failure boundary, or concrete tradeoff supported by the input. Include a limitation or review check only when it changes the reader's interpretation. These subtitles support human review; they do not provide an automatic review verdict or repository-wide correctness claims. See [Output quality](output-quality.md) for representative evaluation cases.
 
-| 機能 | MVPの決定 |
-| --- | --- |
-| 起動 | `codeSubtitle.show` コマンドとショートカット。コマンドパレットからも実行可能 |
-| 入力 | デスクトップ版VS Codeの通常のテキストエディタにある、空白だけではない単一選択 |
-| 文脈 | 選択内容、前後最大5行ずつ、`languageId`。別ファイルは読まない |
-| 解説・翻訳 | 一つの要求内で入力に応じて処理。分類専用の追加AI要求はしない |
-| 表示 | コード近傍の1〜2行を目指し、初版はDecorationによる1行を基準にする |
-| 更新 | 内容をストリーミングで追記し、入力操作を妨げない |
-| 終了 | キャンセル、古い応答の破棄、短い表示期限 |
-| 再利用 | 成功した短い応答のみ、ワークスペースで分離したメモリに保持 |
-| 設定 | 出力言語とモデルの任意指定のみ。初期値は自動 |
-| AI利用 | VS Code Language Model API。独自APIキー・独自バックエンドなし |
+## MVP feature scope
 
-長い行や狭い分割エディタで字幕が読めるかは描画方式の受け入れ条件である。安定版APIで任意の2行領域を確保できると想定せず、実装の最初に表示検証を行う。
+| Feature                     | MVP decision                                                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Launch                      | `codeSubtitle.show` command and shortcut; also executable from the Command Palette                                 |
+| Input                       | One non-whitespace-only selection in the regular text editor of desktop VS Code                                    |
+| Context                     | Selected content, up to five lines before and after, and `languageId`; do not read other files                     |
+| Explanation and translation | Process according to the input in a single request; do not make an additional AI request solely for classification |
+| Display                     | Aim for one or two lines near the code; use one line rendered with a Decoration as the initial baseline            |
+| Update                      | Append streamed content without blocking input operations                                                          |
+| End                         | Cancellation, discarding stale responses, and a short display expiry                                               |
+| Reuse                       | Keep only successful short responses in workspace-separated memory                                                 |
+| Configuration               | Optional output-language and model overrides only; defaults are automatic                                          |
+| AI use                      | VS Code Language Model API; no custom API key or custom backend                                                    |
 
-## 含めないもの
+Readability for long lines and narrow split editors is an acceptance criterion for the rendering approach. Do not assume that a stable API can reserve an arbitrary two-line area; perform display validation at the beginning of implementation.
 
-Chat、詳細パネル、Hoverによる長文表示、会話履歴、コードの自動修正、コメントの置換、全ファイル翻訳、リポジトリの索引化、関連ファイル探索、常時翻訳、先回り生成、永続キャッシュ、拡張によるテレメトリー送信はMVPに含めない。
+## Excluded
 
-Notebook・ブラウザ版・Remote環境の正式対応は初版の受け入れ対象に含めない。対応を宣言する前に、その環境で表示とデータの保存場所を検証する。
+Chat, a detailed panel, long display through Hover, conversation history, automatic code fixes, comment replacement, full-file translation, repository indexing, related-file search, continuous translation, proactive generation, persistent caching, and telemetry sent by the extension are excluded from the MVP.
 
-## 利用開始と失敗時の体験
+Formal support for Notebooks, the browser version, and Remote environments is outside the initial acceptance target. Validate rendering and data-storage locations in each environment before declaring support.
 
-Code SubtitleのためのAPIキー入力は不要。標準経路には、VS Code側で利用できるCopilotモデルとその利用権限が必要。初回実行では送信する範囲を短く説明し、必要なモデル利用同意はVS Codeの仕組みに委ねる。
+## Onboarding and failure experience
 
-モデルがない、同意されない、利用枠を超える、ネットワークが切れる場合は、理由と次の行動を短く示す。失敗を自動再試行して読解や利用枠を消費しない。選択変更によるキャンセルは通常操作として扱い、通知を出さない。
+Code Subtitle does not require an API key. The standard path requires a Copilot model available through VS Code and permission to use it. On first use, briefly explain the range that will be sent and leave any required consent for model use to VS Code's mechanisms.
 
-## 成功の判定
+If no model is available, consent is denied, the quota is exceeded, or the network is disconnected, briefly state the reason and the next action. Do not automatically retry failures in a way that consumes reading time or quota. Treat cancellation caused by a selection change as normal operation and show no notification.
 
-以下は実装後の受け入れ基準であり、現時点で達成した結果ではない。
+## Success criteria
 
-| 観点 | 受け入れ基準 |
-| --- | --- |
-| 読解の継続 | 字幕を表示・消去してもフォーカス、カーソル、スクロール位置を拡張が移動させない |
-| 短さと意味 | 代表的なコード・コメントで短文のまま主要な意味を保つ。根拠のないWhyを断言しない |
-| 字幕の可読性 | 通常・分割エディタ、長い行、折り返し、明暗・高コントラストで確認する |
-| 非書換え | 操作前後で文書内容・dirty状態・Undo履歴に拡張由来の変更がない |
-| 正しい対象 | A生成中にBを選択しても、Aの遅い応答・失敗・タイマーがBの表示を変更しない |
-| 速度 | 同意・起動済みのキャッシュミスでTTFE中央値1秒以内を目指し、p95と失敗率も報告する |
-| 再利用 | 同じ入力の再表示が通信なしで行え、編集・言語・モデル変更時に古い結果を誤用しない |
-| データの扱い | 明示実行時のみ最小文脈を送る。ソース・字幕のディスク保存と独自テレメトリーがない |
+The following are acceptance criteria for after implementation; they are not results achieved at the current stage.
 
-最初の評価は、日本語を含む異なる文字体系で、コードのWhyとコメント翻訳を分けて行う。多言語への入力対応と、各言語での品質保証を同一視しない。文字が出た時刻だけでなく、利用者が意味をつかめたかも確認する。
+| Concern              | Acceptance criterion                                                                                                             |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Reading continuity   | Displaying or clearing a subtitle does not move focus, the cursor, or the scroll position                                        |
+| Brevity and meaning  | Surface one grounded engineering insight beyond an operational paraphrase; preserve comment meaning and avoid unsupported intent |
+| Subtitle readability | Check regular and split editors, long lines, wrapping, light and dark themes, and high-contrast themes                           |
+| No rewriting         | The extension causes no change to document content, dirty state, or Undo history before or after the operation                   |
+| Correct target       | If B is selected while A is generating, A's late response, failure, or timer cannot change B's display                           |
+| Speed                | Aim for median TTFE within one second for a consented, running-extension cache miss, and report p95 and failure rate as well     |
+| Reuse                | Redisplay the same input without a request, and never use stale results after an edit or language or model change                |
+| Data handling        | Send the minimum context only after an explicit action; do not save source or subtitles to disk or send custom telemetry         |
 
-詳細な状態遷移・性能目標・検証条件は[最低限の設計](minimal-design.md)、機能を追加する際の判断軸は[プロダクト方針](product-principles.md)を参照する。
+The first evaluation separates code Why from comment translation across different writing systems, including Japanese. Do not treat accepting multilingual input and quality assurance for each language as the same thing. Check not only when characters appear but also whether the user can understand the meaning.
+
+See [Minimal design](minimal-design.md) for detailed state transitions, performance targets, and verification conditions, and [Product principles](product-principles.md) for the decision criteria when adding features.
