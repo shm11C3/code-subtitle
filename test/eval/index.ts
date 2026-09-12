@@ -266,5 +266,9 @@ function formatMs(value: number | undefined): string {
 }
 
 function escapeCell(value: string): string {
-  return value.replace(/\r?\n/gu, " ").replace(/\|/gu, "\\|");
+  // Escape backslashes first so that an escaped pipe cannot be un-escaped by input.
+  return value
+    .replace(/\\/gu, "\\\\")
+    .replace(/\r?\n/gu, " ")
+    .replace(/\|/gu, "\\|");
 }
