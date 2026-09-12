@@ -68,6 +68,16 @@ Observed results on macOS arm64 with Node.js 24:
 
 The deterministic tests cover the inline-versus-notification decision and its 5-second clear, stored-choice reuse, stale-ID fallback, explicit-setting precedence, the Choose Model command, cursor-based dismissal of a current-line subtitle, persistence across visible-range changes, the display-expiry boundaries at 10 and 30 seconds on both the streamed and cached paths, and the phase colors. They do not establish on-screen readability of inline guidance, keyboard behavior on Windows/Linux, or live-model behavior.
 
+## Quality and speed revision
+
+Prompt policy version `5` selects calibration examples by `languageId` (Rust, Go, Python, and a TypeScript fallback) and applies the Japanese output limits to Chinese and Korean; the zh/ko limits are an unvalidated extrapolation. The session now checks the cache before semantic collection and token fitting, `fitInput` skips `countTokens` while the prompt's UTF-8 byte length fits the budget, an opt-in `codeSubtitle.timingLog` setting records content-free phase timings, and `npm run eval:live` provides a live evaluation harness for the output-quality cases.
+
+On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 99 tests, and `npm run package` passed; the packaged VSIX contains the 15 runtime files and excludes `test/**` and `.eval-host/**`. `npm run test:host` passed on VS Code 1.135.0 (macOS arm64) in built-in mode: renderer, activation and command, cross-file semantic, and semantic host smoke, with no model request. From the deep worktree used for this revision the default `.test-host` path exceeded the macOS Unix-socket limit (`listen EINVAL`), so the run used the new `CODE_SUBTITLE_HOST_ROOT` override with a short directory.
+
+`npm run eval:live` was run once in a fresh profile with no Copilot extension: it printed the "No Copilot model is available in the evaluation profile" guidance, wrote no results file, and exited with code 1. No live model request was made; the harness has not been run against a signed-in Copilot profile, so the recorded outputs, the effect of language-aware examples, the zh/ko limits, and any `modelOptions` experiment remain unevaluated.
+
+After merging `main` with the immediate UX improvements into this branch, the conflicting additions were combined (inline failure guidance keeps the request input while the observer reports the failure; the reading-time expiry and the `cleared` event share `showUntilExpiry`). On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 121 tests, and `npm run package` passed on the merged tree, and the extension-host smoke passed again from a short profile path.
+
 ## Acceptance still requiring direct observation
 
 - Inline failure guidance readability and the `Shift+Alt+E` binding on Windows/Linux.

@@ -18,6 +18,7 @@
     "fmt:check": "oxfmt --check",
     "test": "npm run build && node --test dist/test/*.test.js",
     "test:host": "npm run build && node scripts/test-host.cjs",
+    "eval:live": "npm run build && node scripts/eval-live.cjs",
     "vscode:prepublish": "npm run build",
     "package": "vsce package --allow-missing-repository --skip-license --readme-path docs/extension-readme.md --out code-subtitle-0.0.1.vsix"
   },
@@ -95,6 +96,12 @@
           "default": true,
           "scope": "application",
           "description": "Include bounded language-service type information, documentation, and same-workspace definition excerpts in subtitle requests. Falls back to selection and nearby lines when unavailable."
+        },
+        "codeSubtitle.timingLog": {
+          "type": "boolean",
+          "default": false,
+          "scope": "application",
+          "description": "Write subtitle phase timings (request id, phase name, and milliseconds since the command started) to the Code Subtitle Timing output channel. Records only timings; never code, prompts, subtitles, or file names."
         }
       }
     }

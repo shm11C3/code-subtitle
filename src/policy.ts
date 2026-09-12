@@ -6,7 +6,7 @@ import {
 } from "./contracts.js";
 
 /** Version the prompt and output rules so cached responses can be invalidated together. */
-export const POLICY_VERSION = "4";
+export const POLICY_VERSION = "5";
 
 export interface InputSnapshot {
   text: string;
@@ -19,7 +19,12 @@ export interface InputSnapshot {
   outputLanguage: string;
 }
 
-const JAPANESE_LANGUAGE = /^ja(?:-|$)/i;
+/**
+ * Japanese, Chinese, and Korean carry comparable meaning per grapheme cluster,
+ * so they share the shorter target and hard limit. Only Japanese has been read
+ * by native readers so far; the zh/ko limits are an unvalidated extrapolation.
+ */
+const DENSE_SCRIPT_LANGUAGE = /^(?:ja|zh|ko)(?:-|$)/i;
 const CODE_FENCE = /```/u;
 const MARKDOWN_LINK = /\[[^\]\n]+\]\([^)\n]+\)|(?:https?:\/\/|www\.)\S+/iu;
 const MARKDOWN_HEADING = /^\s{0,3}#{1,6}(?:\s|$)/u;
@@ -43,15 +48,61 @@ const PROMPT_INSTRUCTIONS = [
   "Return one concise plain-text sentence in the requested language. Do not use code fences, headings, lists, block quotes, links, greetings, or alternative code. Prefer unformatted prose; inline backticks and emphasis markers, if used, are displayed as literal text.",
 ].join(" ");
 
-const PROMPT_EXAMPLES = [
-  "Examples illustrate the depth of an insight, not claims to copy into unrelated selections:",
+const PROMPT_EXAMPLES_HEADER =
+  "Examples illustrate the depth of an insight, not claims to copy into unrelated selections:";
+
+/**
+ * Calibration examples per languageId. Each set keeps the same "Code: … /
+ * Subtitle: …" format and depth. The snippets are synthetic and deliberately
+ * distinct from the live evaluation cases so that evaluation stays uncontaminated.
+ */
+const DEFAULT_PROMPT_EXAMPLES: readonly string[] = [
   "Code: const id = ++activeId; const value = await load(); if (id !== activeId) return; render(value);",
   "Subtitle: The request ID gates rendering so a slower, superseded load cannot overwrite the current view.",
   "Code: let pending = inFlight.get(key); if (!pending) { pending = load(key); inFlight.set(key, pending); } return pending;",
   "Subtitle: Sharing the promise coalesces same-key loads; no eviction is shown here, so later calls may keep reusing a settled result.",
+];
+
+const PROMPT_EXAMPLES_BY_LANGUAGE: ReadonlyMap<string, readonly string[]> = new Map([
+  [
+    "rust",
+    [
+      "Code: let mut guard = self.state.lock().unwrap_or_else(|poisoned| poisoned.into_inner()); guard.count += 1;",
+      "Subtitle: Recovering a poisoned lock keeps the counter usable after another thread panicked mid-update, at the cost of trusting possibly half-updated state.",
+      "Code: let port = args.next().map(|value| value.parse::<u16>()).transpose()?.unwrap_or(8080);",
+      "Subtitle: An absent port falls back to 8080, but a present, unparsable one propagates an error, so the default never masks malformed input.",
+    ],
+  ],
+  [
+    "go",
+    [
+      "Code: select { case ch <- item: default: dropped.Add(1) }",
+      "Subtitle: A full channel drops the item instead of blocking the producer, so the counter, not backpressure, is the only signal of loss.",
+      'Code: ctx, cancel := context.WithTimeout(ctx, 2*time.Second); defer cancel(); rows, err := db.QueryContext(ctx, q); if err != nil { return nil, fmt.Errorf("list users: %w", err) }',
+      "Subtitle: The query is bounded to two seconds and its failure is wrapped with %w, so callers still match the underlying error while seeing which operation failed.",
+    ],
+  ],
+  [
+    "python",
+    [
+      "Code: async with semaphore: return await session.get(url, timeout=10)",
+      "Subtitle: The semaphore caps concurrent requests and the timeout bounds each one, so one slow endpoint can occupy a slot for at most ten seconds.",
+      'Code: for chunk in iter(lambda: stream.read(8192), b""): digest.update(chunk)',
+      "Subtitle: Hashing proceeds in 8 KiB reads until an empty read, so memory stays bounded and only an empty read, not a short one, ends the loop.",
+    ],
+  ],
+]);
+
+/** One language-neutral example is always present so the format stays stable. */
+const GENERIC_PROMPT_EXAMPLE: readonly string[] = [
   "Code: return normalize(input);",
   "Subtitle: Normalization is delegated to normalize; which values it accepts or changes is not visible here.",
-].join("\n");
+];
+
+function promptExamples(languageId: string): string {
+  const specific = PROMPT_EXAMPLES_BY_LANGUAGE.get(languageId) ?? DEFAULT_PROMPT_EXAMPLES;
+  return [PROMPT_EXAMPLES_HEADER, ...specific, ...GENERIC_PROMPT_EXAMPLE].join("\n");
+}
 
 /** Collapse display-only whitespace without truncating or otherwise rewriting the text. */
 export function normalizeOutput(text: string): string {
@@ -60,12 +111,12 @@ export function normalizeOutput(text: string): string {
 
 /** Return the shorter prompt target for a language tag. */
 export function outputTarget(language: string): number {
-  return JAPANESE_LANGUAGE.test(language) ? 100 : 200;
+  return DENSE_SCRIPT_LANGUAGE.test(language) ? 100 : 200;
 }
 
 /** Return the hard product limit for a language tag. */
 export function outputLimit(language: string): number {
-  return JAPANESE_LANGUAGE.test(language) ? 200 : 400;
+  return DENSE_SCRIPT_LANGUAGE.test(language) ? 200 : 400;
 }
 
 /** Count user-visible grapheme clusters rather than UTF-16 code units. */
@@ -178,7 +229,7 @@ export function buildPrompt(input: SubtitleInput): string {
   const target = outputTarget(input.outputLanguage);
   const limit = outputLimit(input.outputLanguage);
   const format = `Return only the subtitle for this input, in outputLanguage. Aim for about ${target} visible characters (grapheme clusters), with a hard cap of at most ${limit} visible characters. Keep one concise sentence and the decisive condition or caveat within that hard limit.`;
-  return `${PROMPT_INSTRUCTIONS}\n${PROMPT_EXAMPLES}\n${format}\n${JSON.stringify(data)}`;
+  return `${PROMPT_INSTRUCTIONS}\n${promptExamples(input.languageId)}\n${format}\n${JSON.stringify(data)}`;
 }
 
 function selectSemanticEntries(entries: SemanticEntry[] | undefined): SemanticEntry[] {
@@ -264,6 +315,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/**
+ * Decide whether a token count is needed at all. Every byte-level BPE token
+ * covers at least one UTF-8 byte, so the prompt's UTF-8 byte length is a safe
+ * upper bound on its token count: a prompt whose byte length already fits the
+ * budget cannot exceed it, and the (slow, provider-side) counter is skipped.
+ */
+export function needsTokenCount(prompt: string, maxTokens: number): boolean {
+  return Buffer.byteLength(prompt, "utf8") > maxTokens;
+}
+
 /** Reduce only adjacent context until the complete prompt fits the model budget. */
 export async function fitInput(
   input: SubtitleInput,
@@ -276,6 +337,9 @@ export async function fitInput(
 
   while (true) {
     throwIfAborted(signal);
+    if (!needsTokenCount(prompt, maxTokens)) {
+      return { input: current, prompt };
+    }
     const tokenCount = await countTokens(prompt);
     throwIfAborted(signal);
     if (tokenCount <= maxTokens) {

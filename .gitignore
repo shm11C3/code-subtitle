@@ -2,3 +2,4 @@ node_modules/
 dist/
 *.vsix
 .test-host/
+.eval-host/

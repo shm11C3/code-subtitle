@@ -21,7 +21,14 @@ function event<T>() {
 }
 
 /** A VS Code boundary fixture; session, policy, cache, gateway, and view remain real. */
-function fixture(options: { semanticContext?: boolean; response?: string; text?: string } = {}) {
+function fixture(
+  options: {
+    semanticContext?: boolean;
+    response?: string;
+    timingLog?: boolean;
+    text?: string;
+  } = {},
+) {
   const sourceText = options.text ?? "return value;";
   const directory = options.semanticContext
     ? mkdtempSync(join(tmpdir(), "subtitle-integration-"))
@@ -51,6 +58,8 @@ function fixture(options: { semanticContext?: boolean; response?: string; text?:
   const commands = new Map<string, (...args: any[]) => any>();
   const notifications: string[] = [];
   const displays: string[] = [];
+  const channels: string[] = [];
+  const timingLines: string[] = [];
   let currentText = "";
   let sends = 0;
   let granted = false;
@@ -114,6 +123,10 @@ function fixture(options: { semanticContext?: boolean; response?: string; text?:
     window: {
       activeTextEditor: editor,
       createTextEditorDecorationType: () => ({ dispose() {} }),
+      createOutputChannel: (name: string) => {
+        channels.push(name);
+        return { appendLine: (line: string) => timingLines.push(line), dispose() {} };
+      },
       showWarningMessage: async (message: string) => {
         notifications.push(message);
       },
@@ -126,7 +139,13 @@ function fixture(options: { semanticContext?: boolean; response?: string; text?:
     workspace: {
       getConfiguration: () => ({
         get: (name: string) =>
-          name === "semanticContext" ? semanticEnabled : name === "model" ? "test-model" : "en",
+          name === "semanticContext"
+            ? semanticEnabled
+            : name === "timingLog"
+              ? (options.timingLog ?? false)
+              : name === "model"
+                ? "test-model"
+                : "en",
       }),
       isTrusted: true,
       openTextDocument: async () => document,
@@ -200,6 +219,8 @@ function fixture(options: { semanticContext?: boolean; response?: string; text?:
     api,
     notifications,
     displays,
+    channels,
+    timingLines,
     selectionChanged,
     visibleChanged,
     documentChanged,
@@ -310,6 +331,22 @@ test("an explicit command includes provider evidence in the model request", asyn
   }
 });
 
+test("a repeated command reuses the result without provider or model requests", async () => {
+  const app = fixture({ semanticContext: true });
+  try {
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    const providerCallsAfterFirst = app.providerCalls.length;
+    assert.ok(providerCallsAfterFirst > 0);
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    assert.equal(app.providerCalls.length, providerCallsAfterFirst);
+    assert.equal(app.text, "↳ Returns the current value.");
+  } finally {
+    app.dispose();
+  }
+});
+
 test("workspace dependency edits invalidate semantic results before reuse", async () => {
   const app = fixture({ semanticContext: true });
   try {
@@ -414,6 +451,43 @@ test(
     }
   },
 );
+
+test("the timing log stays off by default and creates no output channel", async () => {
+  const app = fixture();
+  try {
+    await app.command("show");
+    assert.equal(app.text, "↳ Returns the current value.");
+    assert.deepEqual(app.channels, []);
+    assert.deepEqual(app.timingLines, []);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("the timing log records phase timings without any content", async () => {
+  const app = fixture({ timingLog: true });
+  try {
+    await app.command("show");
+    assert.deepEqual(app.channels, ["Code Subtitle Timing"]);
+    assert.deepEqual(
+      app.timingLines.map((line) => line.replace(/\+\d+ms$/u, "+Nms")),
+      [
+        "request=1 commandStart +Nms",
+        "request=1 prepared +Nms",
+        "request=1 requestStart +Nms",
+        "request=1 firstFragment +Nms",
+        "request=1 streamEnd +Nms",
+        "request=1 visible +Nms",
+      ],
+    );
+    assert.doesNotMatch(
+      app.timingLines.join("\n"),
+      /return value|example\.ts|Returns the current|fixture/u,
+    );
+  } finally {
+    app.dispose();
+  }
+});
 
 test("granting first-use model consent still displays the requested subtitle", async () => {
   const app = fixture();

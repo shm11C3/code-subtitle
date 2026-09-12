@@ -64,7 +64,7 @@ These are examples of displayed content. The extension does not insert into or r
 | Cancellation and reuse           | Cancel old requests and use a short-lived, workspace-scoped memory cache                                          |
 | Minimal configuration            | Use automatic output language and automatic model selection by default                                            |
 
-For Japanese, the default target is one sentence within 100 grapheme clusters, with a display allowance up to 200. Other languages target 200 grapheme clusters with an allowance up to 400. Accuracy of negation, conditions, and caveats takes priority over brevity; if the result does not fit, ask the user to make the selection smaller.
+For Japanese, Chinese, and Korean, the default target is one sentence within 100 grapheme clusters, with a display allowance up to 200. Other languages target 200 grapheme clusters with an allowance up to 400. Only the Japanese limits have been read by native readers; the Chinese and Korean limits are an extrapolation from comparable character density and should be checked with the live evaluation harness. Accuracy of negation, conditions, and caveats takes priority over brevity; if the result does not fit, ask the user to make the selection smaller.
 
 ## Non-goals
 
@@ -84,7 +84,7 @@ On explicit execution, the selected content and up to five surrounding lines on 
 
 The extension does not guarantee local model execution; data handling depends on the model provider and organization settings. The extension does not save or send code, responses, or file paths through its logs or telemetry, and the cache is limited to memory.
 
-Speed is measured primarily by TTFE (Time To First Explanation: the time until the first subtitle that makes the meaning understandable). With consent granted, the extension already running, and a cache miss, the targets are **a median of no more than one second until a useful subtitle appears and a median of no more than two seconds until completion**. These are unmeasured targets, not guarantees. First use, slow connections, and cache hits will be measured separately.
+Speed is measured primarily by TTFE (Time To First Explanation: the time until the first subtitle that makes the meaning understandable). With consent granted, the extension already running, and a cache miss, the targets are **a median of no more than one second until a useful subtitle appears and a median of no more than two seconds until completion**. These are unmeasured targets, not guarantees. First use, slow connections, and cache hits will be measured separately. The opt-in `codeSubtitle.timingLog` setting records content-free phase timings in an output channel to support that measurement.
 
 ## Documentation
 

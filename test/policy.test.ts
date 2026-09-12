@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SubtitleError, type SubtitleInput } from "../src/contracts.js";
 import {
+  POLICY_VERSION,
   buildPrompt,
   createInput,
   displayTtlMs,
   fitInput,
   graphemeLength,
+  needsTokenCount,
   normalizeOutput,
   outputLimit,
   outputTarget,
@@ -22,6 +24,17 @@ test("uses separate language-specific output targets and hard limits", () => {
   assert.equal(outputTarget("en-US"), 200);
   assert.equal(outputLimit("ja-JP"), 200);
   assert.equal(outputLimit("en-US"), 400);
+});
+
+test("treats Chinese and Korean like Japanese for the target and the hard limit", () => {
+  for (const language of ["zh", "zh-CN", "zh-Hant-TW", "ko", "ko-KR", "JA"]) {
+    assert.equal(outputTarget(language), 100, language);
+    assert.equal(outputLimit(language), 200, language);
+  }
+  for (const language of ["zu", "kok", "jav", "en", "auto", ""]) {
+    assert.equal(outputTarget(language), 200, language);
+    assert.equal(outputLimit(language), 400, language);
+  }
 });
 
 test("scales the display lifetime by grapheme count between 10 and 30 seconds", () => {
@@ -262,6 +275,61 @@ test("requests an experienced-reader insight while sending only allowed input da
   assert.doesNotMatch(prompt, /private-editor|private-workspace|private\/secret/iu);
 });
 
+test("selects calibration examples by language and keeps one generic example", () => {
+  const promptFor = (languageId: string): string =>
+    buildPrompt(
+      createInput({
+        text: "before\nvalue = compute()\nafter",
+        selections: [{ start: { line: 1, character: 0 }, end: { line: 1, character: 17 } }],
+        documentUri: "file:///workspace/example",
+        documentVersion: 1,
+        editorId: "editor-1",
+        languageId,
+        outputLanguage: "en",
+      }),
+    );
+  const generic = "Code: return normalize(input);";
+  const typescriptExample = "Code: const id = ++activeId;";
+
+  const rust = promptFor("rust");
+  assert.match(rust, /Code: .*unwrap_or_else\(\|poisoned\|/u);
+  assert.ok(rust.includes(generic));
+  assert.equal(rust.includes(typescriptExample), false);
+
+  const go = promptFor("go");
+  assert.match(go, /Code: select \{/u);
+  assert.ok(go.includes(generic));
+  assert.equal(go.includes(typescriptExample), false);
+
+  const python = promptFor("python");
+  assert.match(python, /Code: async with semaphore:/u);
+  assert.ok(python.includes(generic));
+  assert.equal(python.includes(typescriptExample), false);
+
+  for (const languageId of ["typescript", "javascript", "cobol", "constructor", "__proto__"]) {
+    const fallback = promptFor(languageId);
+    assert.ok(fallback.includes(typescriptExample), languageId);
+    assert.ok(fallback.includes(generic), languageId);
+    assert.equal(fallback.includes("unwrap_or_else"), false, languageId);
+  }
+
+  for (const prompt of [rust, go, python]) {
+    const examples = prompt.split("\n").filter((line) => line.startsWith("Code: "));
+    const subtitles = prompt.split("\n").filter((line) => line.startsWith("Subtitle: "));
+    assert.equal(examples.length, 3);
+    assert.equal(subtitles.length, 3);
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1)) as Record<string, string>;
+    assert.deepEqual(Object.keys(data).sort(), [
+      "after",
+      "before",
+      "languageId",
+      "outputLanguage",
+      "selection",
+    ]);
+  }
+  assert.equal(POLICY_VERSION, "5");
+});
+
 test("includes whitelisted semantic evidence while excluding local metadata", () => {
   const semanticContext = {
     entries: [
@@ -399,7 +467,7 @@ test("bounds and sanitizes semantic evidence before it reaches the prompt", () =
 });
 
 test("includes the validator's language-specific display limit in the prompt", () => {
-  for (const outputLanguage of ["ja", "ja-JP", "en-US", "fr"]) {
+  for (const outputLanguage of ["ja", "ja-JP", "zh-CN", "ko", "en-US", "fr"]) {
     const input = createInput({
       text: "return normalize(input);",
       selections: [{ start: { line: 0, character: 0 }, end: { line: 0, character: 24 } }],
@@ -501,6 +569,71 @@ test("drops optional semantic evidence before adjacent context when fitting", as
   >;
   assert.deepEqual(data.semanticContext, result.input.semanticContext?.entries);
   assert.ok(calls >= 2);
+});
+
+test("counts tokens only when the UTF-8 byte length can exceed the budget", () => {
+  assert.equal(needsTokenCount("abcd", 4), false);
+  assert.equal(needsTokenCount("abcd", 3), true);
+  assert.equal(needsTokenCount("日本", 6), false);
+  assert.equal(needsTokenCount("日本", 5), true);
+});
+
+test("skips the token counter when the prompt bytes already fit the model budget", async () => {
+  const input = createInput({
+    text: "before\nconst value = compute();\nafter",
+    selections: [{ start: { line: 1, character: 0 }, end: { line: 1, character: 24 } }],
+    documentUri: "file:///workspace/example.ts",
+    documentVersion: 1,
+    editorId: "editor-1",
+    languageId: "typescript",
+    outputLanguage: "en",
+  });
+  let calls = 0;
+  const result = await fitInput(
+    input,
+    async () => {
+      calls += 1;
+      return 1;
+    },
+    1_000_000,
+    new AbortController().signal,
+  );
+
+  assert.equal(calls, 0);
+  assert.equal(result.prompt, buildPrompt(input));
+  assert.equal(result.input.before, "before");
+  assert.equal(result.input.after, "after");
+});
+
+test("rechecks the byte bound before each later token count while reducing context", async () => {
+  const before = Array.from({ length: 5 }, (_, index) => `before-${index}`.padEnd(300, "b"));
+  const after = Array.from({ length: 5 }, (_, index) => `after-${index}`.padEnd(300, "a"));
+  const input = createInput({
+    text: [...before, "selected", ...after].join("\n"),
+    selections: [{ start: { line: 5, character: 0 }, end: { line: 5, character: 8 } }],
+    documentUri: "file:///workspace/example.ts",
+    documentVersion: 1,
+    editorId: "editor-1",
+    languageId: "typescript",
+    outputLanguage: "en",
+  });
+  const initialBytes = Buffer.byteLength(buildPrompt(input), "utf8");
+  const maxTokens = initialBytes - 100;
+  const counted: string[] = [];
+  const result = await fitInput(
+    input,
+    async (prompt) => {
+      counted.push(prompt);
+      return maxTokens + 1;
+    },
+    maxTokens,
+    new AbortController().signal,
+  );
+
+  assert.ok(counted.length >= 1);
+  assert.ok(counted.every((prompt) => Buffer.byteLength(prompt, "utf8") > maxTokens));
+  assert.ok(Buffer.byteLength(result.prompt, "utf8") <= maxTokens);
+  assert.equal(result.input.selection, "selected");
 });
 
 test("reports an oversized prompt when the selected text itself cannot fit", async () => {

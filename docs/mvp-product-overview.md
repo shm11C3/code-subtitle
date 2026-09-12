@@ -35,7 +35,7 @@ Clear the subtitle 10 to 30 seconds after generation completes, scaled to the co
 | Code and comments together | Focus on the role of the code and treat comments as context                              |
 | Code with unclear intent   | State the observable responsibility or specific missing context without inventing intent |
 
-Japanese output targets 100 grapheme clusters, with a display allowance up to 200. For other languages, aim for one sentence that can be understood at a glance; the display limit is defined in [Minimal design](minimal-design.md). Do not drop prohibitions or conditions to make a comment shorter. If a short translation does not fit, switch to guidance asking the user to make the selection smaller.
+Japanese, Chinese, and Korean output targets 100 grapheme clusters, with a display allowance up to 200. For other languages, aim for one sentence that can be understood at a glance; the display limit is defined in [Minimal design](minimal-design.md). Only the Japanese limits have been validated by native readers; the Chinese and Korean limits follow from comparable character density and remain unvalidated (principle 5). Do not drop prohibitions or conditions to make a comment shorter. If a short translation does not fit, switch to guidance asking the user to make the selection smaller.
 
 For `cache.get(key) ?? compute()`, an illustrative subtitle is “Only null or undefined triggers computation, so cached false or zero values remain valid hits.” This identifies a consequential boundary rather than narrating the branch. Do not add unseen properties such as whether `compute()` is pure or whether its result is stored.
 

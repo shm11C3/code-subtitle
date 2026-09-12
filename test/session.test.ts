@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  Clock,
-  ModelGateway,
-  PreparedRequest,
-  SubtitleCache,
-  SubtitleInput,
-  SubtitlePhase,
-  SubtitleView,
+import {
+  SubtitleError,
+  type Clock,
+  type ModelGateway,
+  type PreparedRequest,
+  type SubtitleCache,
+  type SubtitleInput,
+  type SubtitleObserver,
+  type SubtitlePhase,
+  type SubtitleTimingEvent,
+  type SubtitleView,
 } from "../src/contracts.js";
 import { SubtitleSession } from "../src/session.js";
 
@@ -144,6 +147,7 @@ function createGateway(stream: () => Promise<AsyncIterable<string>>): ModelGatew
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: `${input.documentUri}:${input.selection}`,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream,
       };
     },
@@ -177,7 +181,7 @@ test("shows the first streamed fragment before the model completes", async () =>
 
   for (
     let attempt = 0;
-    attempt < 20 && !view.shows.some((show) => show.text.length > 0);
+    attempt < 50 && !view.shows.some((show) => show.text.length > 0);
     attempt += 1
   ) {
     await Promise.resolve();
@@ -222,7 +226,7 @@ test("batches later fragments until the 50ms flush boundary", async () => {
   const pending = session.show(createInput());
   for (
     let attempt = 0;
-    attempt < 20 && !view.shows.some((show) => show.text === "First fragment");
+    attempt < 50 && !view.shows.some((show) => show.text === "First fragment");
     attempt += 1
   ) {
     await Promise.resolve();
@@ -259,6 +263,7 @@ test("cancellation settles an uncooperative request without clearing the replace
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: input.selection,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream: async () => {
           if (input.selection === "request A") {
             startA();
@@ -303,6 +308,7 @@ test("late chunks and failures from a cancelled request cannot affect a newer re
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: input.selection,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream: async () => {
           if (input.selection === "request A") {
             return (async function* (): AsyncIterable<string> {
@@ -330,7 +336,7 @@ test("late chunks and failures from a cancelled request cannot affect a newer re
   const pendingA = session.show(createInput({ selection: "request A" }));
   for (
     let attempt = 0;
-    attempt < 20 && !view.shows.some((show) => show.text === "A initial");
+    attempt < 50 && !view.shows.some((show) => show.text === "A initial");
     attempt += 1
   ) {
     await Promise.resolve();
@@ -368,6 +374,7 @@ test("completed results are reused without generation and expire from the view",
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: `${input.documentUri}:${input.selection}`,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream: async () => {
           streamCalls += 1;
           return (async function* (): AsyncIterable<string> {
@@ -401,6 +408,255 @@ test("completed results are reused without generation and expire from the view",
   assert.equal(view.clearCount, clearCountAfterRender);
   clock.advanceBy(1);
   assert.equal(view.clearCount, clearCountAfterRender + 1);
+});
+
+class RecordingObserver implements SubtitleObserver {
+  readonly events: SubtitleTimingEvent[] = [];
+
+  observe(event: SubtitleTimingEvent): void {
+    this.events.push(event);
+  }
+
+  summary(): string[] {
+    return this.events.map((event) =>
+      event.name === "failed"
+        ? `${event.requestId}:failed(${event.code})@${event.at}`
+        : `${event.requestId}:${event.name}@${event.at}`,
+    );
+  }
+}
+
+function timedGateway(clock: ManualClock, chunks: () => AsyncIterable<string>): ModelGateway {
+  return {
+    async prepare(input) {
+      clock.advanceBy(100);
+      const prompt = `${input.documentUri}:${input.selection}`;
+      return {
+        input,
+        model: { vendor: "copilot", id: "test-model", version: "1" },
+        prompt,
+        alreadyAuthorized: true,
+        fit: async () => ({ input, prompt }),
+        stream: async () => chunks(),
+      };
+    },
+  };
+}
+
+test("reports content-free phase timings for a streamed request", async () => {
+  const clock = new ManualClock();
+  const observer = new RecordingObserver();
+  const session = new SubtitleSession({
+    gateway: timedGateway(clock, async function* () {
+      yield "Gates";
+      clock.advanceBy(200);
+      yield " rendering.";
+    }),
+    view: new RecordingView(),
+    cache: new MemoryCache(),
+    clock,
+    observer,
+    isCurrent: () => true,
+  });
+
+  await session.show(createInput());
+  clock.advanceBy(10_000);
+
+  assert.deepEqual(observer.summary(), [
+    "1:commandStart@0",
+    "1:prepared@100",
+    "1:requestStart@100",
+    "1:firstFragment@100",
+    "1:streamEnd@300",
+    "1:visible@300",
+    "1:cleared@10300",
+  ]);
+  const serialized = JSON.stringify(observer.events);
+  assert.doesNotMatch(serialized, /example\.ts|await update|Gates|rendering|workspace-1|editor-1/u);
+});
+
+test("reports a cache hit, a dismissal, and a failure with their phases", async () => {
+  const clock = new ManualClock();
+  const observer = new RecordingObserver();
+  let response = "Reusable explanation.";
+  const session = new SubtitleSession({
+    gateway: timedGateway(clock, async function* () {
+      yield response;
+    }),
+    view: new RecordingView(),
+    cache: new MemoryCache(),
+    clock,
+    observer,
+    isCurrent: () => true,
+  });
+
+  await session.show(createInput());
+  const afterFirst = observer.events.length;
+  await session.show(createInput());
+  session.dismiss();
+  assert.deepEqual(observer.summary().slice(afterFirst), [
+    "1:cancelled@100",
+    "1:cleared@100",
+    "2:commandStart@100",
+    "2:prepared@200",
+    "2:cacheHit@200",
+    "2:visible@200",
+    "2:cancelled@200",
+    "2:cleared@200",
+  ]);
+
+  response = "# heading";
+  const afterHit = observer.events.length;
+  await session.show(createInput({ selection: "other();" }));
+  assert.deepEqual(observer.summary().slice(afterHit), [
+    "3:commandStart@200",
+    "3:prepared@300",
+    "3:requestStart@300",
+    "3:firstFragment@300",
+    "3:streamEnd@300",
+    "3:failed(outputInvalid)@300",
+    "3:cleared@300",
+  ]);
+});
+
+test("a cache hit renders the completed text without fitting or streaming", async () => {
+  let fitCalls = 0;
+  let streamCalls = 0;
+  const view = new RecordingView();
+  const cache = new MemoryCache();
+  const gateway: ModelGateway = {
+    async prepare(input) {
+      const prompt = `${input.documentUri}:${input.selection}`;
+      return {
+        input,
+        model: { vendor: "copilot", id: "test-model", version: "1" },
+        prompt,
+        alreadyAuthorized: true,
+        fit: async () => {
+          fitCalls += 1;
+          return { input, prompt };
+        },
+        stream: async () => {
+          streamCalls += 1;
+          return (async function* (): AsyncIterable<string> {
+            yield "Reusable explanation.";
+          })();
+        },
+      };
+    },
+  };
+  const session = new SubtitleSession({
+    gateway,
+    view,
+    cache,
+    clock: new ManualClock(),
+    isCurrent: () => true,
+  });
+  const input = createInput();
+
+  await session.show(input);
+  assert.equal(fitCalls, 1);
+  assert.equal(streamCalls, 1);
+
+  const showsBeforeHit = view.shows.length;
+  await session.show(input);
+  assert.equal(fitCalls, 1);
+  assert.equal(streamCalls, 1);
+  assert.equal(cache.gets, 2);
+  assert.deepEqual(
+    view.shows.slice(showsBeforeHit).map((show) => show.phase),
+    ["preparing", "visible"],
+  );
+  assert.equal(view.shows.at(-1)?.text, "Reusable explanation.");
+});
+
+test(
+  "fitting is outside the generation deadline and aborts quietly",
+  { timeout: 2_000 },
+  async () => {
+    let fitStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      fitStarted = resolve;
+    });
+    let streamCalls = 0;
+    const view = new RecordingView();
+    const clock = new ManualClock();
+    const session = new SubtitleSession({
+      gateway: {
+        async prepare(input) {
+          return {
+            input,
+            model: { vendor: "copilot", id: "test-model", version: "1" },
+            prompt: input.selection,
+            alreadyAuthorized: true,
+            fit: async (signal) => {
+              fitStarted();
+              await new Promise<void>((_, reject) => {
+                signal.addEventListener("abort", () => {
+                  const error = new Error("aborted");
+                  error.name = "AbortError";
+                  reject(error);
+                });
+              });
+              return { input, prompt: input.selection };
+            },
+            stream: async () => {
+              streamCalls += 1;
+              return (async function* (): AsyncIterable<string> {
+                yield "unused";
+              })();
+            },
+          };
+        },
+      },
+      view,
+      cache: new MemoryCache(),
+      clock,
+      isCurrent: () => true,
+    });
+
+    const pending = session.show(createInput());
+    await started;
+    clock.advanceBy(10_000);
+    assert.deepEqual(view.failures, []);
+
+    session.dismiss();
+    await pending;
+    assert.equal(streamCalls, 0);
+    assert.deepEqual(view.failures, []);
+    assert.equal(view.clearCount > 0, true);
+  },
+);
+
+test("an oversized prompt reported during fitting notifies inputTooLarge", async () => {
+  const view = new RecordingView();
+  const cache = new MemoryCache();
+  const session = new SubtitleSession({
+    gateway: {
+      async prepare(input) {
+        return {
+          input,
+          model: { vendor: "copilot", id: "test-model", version: "1" },
+          prompt: input.selection,
+          alreadyAuthorized: true,
+          fit: async () => {
+            throw new SubtitleError("inputTooLarge");
+          },
+          stream: async () => {
+            throw new Error("stream must not start");
+          },
+        };
+      },
+    },
+    view,
+    cache,
+    clock: new ManualClock(),
+    isCurrent: () => true,
+  });
+
+  await session.show(createInput());
+  assert.deepEqual(view.failures, ["inputTooLarge"]);
+  assert.equal(cache.puts, 0);
 });
 
 test("a long completed subtitle stays visible for its reading time before expiring", async () => {
@@ -555,6 +811,7 @@ test("authorized requests time out without caching partial work", async () => {
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamStarted();
             return neverCompletes;
@@ -603,6 +860,7 @@ test("unconsented requests start the generation timeout after the response handl
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: false,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamCalled();
             return streamReady;
@@ -648,6 +906,7 @@ test("document invalidation cancels the active subtitle without retrying", async
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: request.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input: request, prompt: request.selection }),
           stream: async () => {
             streamStarted();
             return neverCompletes;
@@ -680,6 +939,7 @@ test("provider aborts are treated as quiet cancellation", async () => {
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             const error = new Error("user closed the model picker");
             error.name = "AbortError";
@@ -714,6 +974,7 @@ test("repeating the same active request does not start a second stream", async (
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamCalls += 1;
             return (async function* (): AsyncIterable<string> {
@@ -760,6 +1021,7 @@ test("clearing the cache also cancels active work before it can be saved", async
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: `${input.documentUri}:${input.selection}`,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamStarted();
             return (async function* (): AsyncIterable<string> {
@@ -806,6 +1068,7 @@ test("disposing the session cancels work and rejects later commands quietly", as
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamStarted();
             return neverCompletes;

@@ -1,5 +1,6 @@
 import type * as vscode from "vscode";
 import type {
+  FittedRequest,
   ModelGateway,
   ModelIdentity,
   PreparedRequest,
@@ -7,6 +8,7 @@ import type {
   SubtitleInput,
 } from "./contracts.js";
 import { SubtitleError as SubtitleErrorClass } from "./contracts.js";
+import { buildPrompt } from "./policy.js";
 
 export interface FitInput {
   (
@@ -53,6 +55,11 @@ export interface VscodeModelGatewayOptions {
   readonly picker: VscodeModelPicker;
   readonly fitInput: FitInput;
   readonly modelSetting?: string;
+  /**
+   * Provider-specific request options forwarded as `modelOptions`. Production
+   * passes nothing; the live evaluation harness uses this for experiments.
+   */
+  readonly modelOptions?: Record<string, unknown>;
   readonly choiceStore?: ModelChoiceStore;
 }
 
@@ -73,14 +80,6 @@ export class VscodeModelGateway implements ModelGateway {
     const model = await this.resolveModel(signal);
     throwIfAborted(signal);
 
-    const fitted = await this.options.fitInput(
-      input,
-      (text) => this.countTokens(model, text, signal),
-      model.maxInputTokens,
-      signal,
-    );
-    throwIfAborted(signal);
-
     const access = this.options.access.canSendRequest(model);
     if (access === false) {
       throw new SubtitleErrorClass("accessDenied");
@@ -91,12 +90,34 @@ export class VscodeModelGateway implements ModelGateway {
       id: model.id,
       version: model.version,
     };
+    // Evidence collection and token counting are deferred to `fit`, so a cache
+    // hit keyed on the pre-enrichment input pays for neither.
+    let fitted: FittedRequest | undefined;
+    const fit = async (fitSignal: AbortSignal): Promise<FittedRequest> => {
+      if (fitted !== undefined) {
+        return fitted;
+      }
+      throwIfAborted(fitSignal);
+      const result = await this.options.fitInput(
+        input,
+        (text) => this.countTokens(model, text, fitSignal),
+        model.maxInputTokens,
+        fitSignal,
+      );
+      throwIfAborted(fitSignal);
+      fitted = { input: result.input, prompt: result.prompt };
+      return fitted;
+    };
     return {
-      input: fitted.input,
+      input,
       model: identity,
-      prompt: fitted.prompt,
+      prompt: buildPrompt(input),
       alreadyAuthorized: access === true,
-      stream: (streamSignal) => this.startStream(model, fitted.prompt, streamSignal),
+      fit,
+      stream: async (streamSignal) => {
+        const result = await fit(streamSignal);
+        return this.startStream(model, result.prompt, streamSignal);
+      },
     };
   }
 
@@ -266,9 +287,15 @@ export class VscodeModelGateway implements ModelGateway {
     const source = this.options.runtime.createCancellationTokenSource();
     const stop = bridgeAbort(signal, source);
     try {
+      const requestOptions: vscode.LanguageModelChatRequestOptions = {
+        justification: "Explain the explicitly selected code with a short subtitle.",
+      };
+      if (this.options.modelOptions !== undefined) {
+        requestOptions.modelOptions = this.options.modelOptions;
+      }
       const response = await model.sendRequest(
         [this.options.runtime.userMessage(prompt)],
-        { justification: "Explain the explicitly selected code with a short subtitle." },
+        requestOptions,
         source.token,
       );
       throwIfAborted(signal);

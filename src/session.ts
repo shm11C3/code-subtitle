@@ -12,6 +12,8 @@ import {
   type PreparedRequest,
   type SubtitleCache,
   type SubtitleInput,
+  type SubtitleObserver,
+  type SubtitleTimingEventName,
   type SubtitleView,
   SubtitleError,
 } from "./contracts.js";
@@ -43,11 +45,14 @@ export interface SubtitleSessionOptions {
   view: SubtitleView;
   cache: SubtitleCache;
   clock?: Clock;
+  /** Optional content-free phase timing sink; see minimal design §10. */
+  observer?: SubtitleObserver;
   isCurrent: (input: SubtitleInput) => boolean;
 }
 
 const systemClock: Clock = {
-  now: () => Date.now(),
+  // Monotonic so that phase deltas are unaffected by wall-clock adjustments.
+  now: () => performance.now(),
   setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
   clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
 };
@@ -58,6 +63,7 @@ export class SubtitleSession {
   private readonly view: SubtitleView;
   private readonly cache: SubtitleCache;
   private readonly clock: Clock;
+  private readonly observer?: SubtitleObserver;
   private readonly isCurrent: (input: SubtitleInput) => boolean;
   private active?: ActiveRequest;
   private nextRequestId = 0;
@@ -68,6 +74,7 @@ export class SubtitleSession {
     this.view = options.view;
     this.cache = options.cache;
     this.clock = options.clock ?? systemClock;
+    this.observer = options.observer;
     this.isCurrent = options.isCurrent;
   }
 
@@ -104,6 +111,7 @@ export class SubtitleSession {
       hasRenderedText: false,
     };
     this.active = active;
+    this.emit(active, "commandStart");
     active.promise = this.run(active);
     return active.promise;
   }
@@ -176,9 +184,11 @@ export class SubtitleSession {
       return;
     }
     active.prepared = preparedResult;
+    this.emit(active, "prepared");
 
     const cached = this.cache.get(preparedResult);
     if (cached !== undefined) {
+      this.emit(active, "cacheHit");
       if (!this.isValidOutput(cached, active.input.outputLanguage)) {
         this.fail(active, "outputInvalid");
         return;
@@ -186,10 +196,20 @@ export class SubtitleSession {
       const normalized = normalizeOutput(cached);
       active.lifecycle = "visible";
       this.view.show(active.input, normalized, "visible");
+      this.emit(active, "visible");
       this.showUntilExpiry(active, normalized);
       return;
     }
 
+    const fitResult = await this.waitForCancellation(
+      Promise.resolve().then(() => preparedResult.fit(active.controller.signal)),
+      active,
+    );
+    if (fitResult === CANCELLED || !this.isLive(active)) {
+      return;
+    }
+
+    this.emit(active, "requestStart");
     const streamPromise = Promise.resolve().then(() =>
       preparedResult.stream(active.controller.signal),
     );
@@ -240,6 +260,7 @@ export class SubtitleSession {
 
       if (!active.hasRenderedText) {
         active.hasRenderedText = true;
+        this.emit(active, "firstFragment");
         this.view.show(active.input, partial, "streaming");
       } else {
         active.pendingText = partial;
@@ -250,6 +271,7 @@ export class SubtitleSession {
     if (!this.isLive(active)) {
       return CANCELLED;
     }
+    this.emit(active, "streamEnd");
 
     const completeRaw = active.rawText;
     if (!this.isValidOutput(completeRaw, active.input.outputLanguage)) {
@@ -262,6 +284,7 @@ export class SubtitleSession {
     this.clearFlushTimer(active);
     active.pendingText = undefined;
     this.view.show(active.input, complete, "visible");
+    this.emit(active, "visible");
     active.lifecycle = "visible";
     if (active.prepared) {
       this.cache.put(active.prepared, complete);
@@ -302,6 +325,7 @@ export class SubtitleSession {
       active.lifecycle = "expired";
       this.active = undefined;
       this.view.clear();
+      this.emit(active, "cleared");
     }, displayTtlMs(text));
   }
 
@@ -330,11 +354,14 @@ export class SubtitleSession {
     active.flushTimer = undefined;
   }
 
-  private cancelActive(active = this.active): void {
+  private cancelActive(active = this.active, failed = false): void {
     if (!active || active.lifecycle === "cancelled" || active.lifecycle === "expired") {
       return;
     }
     active.lifecycle = "cancelled";
+    if (!failed) {
+      this.emit(active, "cancelled");
+    }
     active.controller.abort();
     this.clearRequestTimer(active);
     this.clearFlushTimer(active);
@@ -345,15 +372,23 @@ export class SubtitleSession {
     if (this.active === active) {
       this.active = undefined;
       this.view.clear();
+      this.emit(active, "cleared");
     }
   }
 
   private fail(active: ActiveRequest, code: FailureCode): void {
     const isCurrent = this.active === active;
-    this.cancelActive(active);
+    if (active.lifecycle !== "cancelled" && active.lifecycle !== "expired") {
+      this.observer?.observe({ requestId: active.id, at: this.clock.now(), name: "failed", code });
+    }
+    this.cancelActive(active, true);
     if (isCurrent && !this.disposed) {
       this.view.notify(code, active.input);
     }
+  }
+
+  private emit(active: ActiveRequest, name: SubtitleTimingEventName): void {
+    this.observer?.observe({ requestId: active.id, at: this.clock.now(), name });
   }
 
   private isLive(active: ActiveRequest): boolean {

@@ -84,6 +84,24 @@ RED: A test required `displayTtlMs` to return 10,000 ms for empty and short text
 
 GREEN: `displayTtlMs` multiplies the grapheme count by 150 ms and clamps the result to 10–30 seconds. It is a pure function shared with the session so the display lifetime and the output limits use the same grapheme counting.
 
+## CJK output limit cycle
+
+RED: A new test required `zh`, `zh-*`, `ko`, and `ko-*` tags to share the Japanese 100-grapheme target and 200-grapheme hard limit while `zu`, `kok`, `jav`, and `auto` kept 200/400. It failed because only `ja` matched the dense-script pattern.
+
+GREEN: `outputTarget` and `outputLimit` use one `ja|zh|ko` language pattern. The prompt's limit instruction follows automatically. This is a character-density extrapolation; native-reader validation for Chinese and Korean has not been performed.
+
+## Token-count bound cycle
+
+RED: Tests required `needsTokenCount` to return false when the prompt's UTF-8 byte length is at most the token budget, `fitInput` to never call the counter for a prompt that fits by that bound, and every later counter call during reduction to happen only while the byte bound is still exceeded. They failed because the helper did not exist and `fitInput` always counted at least once.
+
+GREEN: `needsTokenCount` compares `Buffer.byteLength` with `maxTokens`; `fitInput` checks it before the first and each subsequent count. The assumption that every byte-level BPE token covers at least one byte is stated in the code and in design §2. Provider-side counting behavior is unchanged when the bound is exceeded.
+
+## Language-aware calibration examples cycle
+
+RED: A test required `rust`, `go`, and `python` inputs to receive dedicated calibration examples, every other `languageId` (including `constructor` and `__proto__`) to receive the TypeScript/JavaScript set, one generic `return normalize(input)` example to appear in all sets, exactly three example pairs per prompt, the data JSON keys to stay unchanged, and `POLICY_VERSION` to be `5`. It failed because all prompts used the single TypeScript set under version `4`.
+
+GREEN: `buildPrompt` looks up examples in a `Map` keyed by `languageId` with the generic example appended. The new snippets are synthetic and distinct from the live evaluation cases so that evaluation is not contaminated. This changes prompt construction only; whether the examples improve generated subtitles is a live-harness question.
+
 ## Cache TDD cycles
 
 The cache tests use a controllable clock and fake prepared requests. They never persist data to disk or call a model.
