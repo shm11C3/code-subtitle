@@ -10,7 +10,11 @@ To change the shortcut, open **Preferences: Open Keyboard Shortcuts** from the C
 
 The extension uses a GitHub Copilot model available in VS Code. It has no API-key setting or separate backend. On first use, choose a model and complete VS Code's consent flow if prompted. Sign-in, model access, and available quota may be required.
 
-Only explicit commands send the selected text and up to five adjacent lines on each side. Code Subtitle does not modify source files, persist code or responses, or send telemetry. Model-provider data handling is governed by that provider and your organization. See the [VS Code Language Model API guide](https://code.visualstudio.com/api/extension-guides/ai/language-model).
+Only explicit commands send the selected text and up to five adjacent lines on each side. Optional semantic context also includes bounded language-service type information, documentation, and one-hop definition excerpts from the same workspace folder. It queries at most three selected identifiers, waits at most 600 ms, and includes up to 4,000 UTF-16 code units of extra evidence. Missing or slow providers fall back to the selection and adjacent lines. Untitled files and untrusted workspaces use that basic path as well.
+
+Disable `codeSubtitle.semanticContext` in user settings to omit semantic evidence. Code Subtitle uses VS Code's standard provider APIs, including services supplied by TypeScript 7 (tsgo); the appropriate language extension must be active. No separate language server is launched.
+
+Code Subtitle does not modify source files, persist code or responses, or send telemetry. Model-provider data handling is governed by that provider and your organization. See the [VS Code Language Model API guide](https://code.visualstudio.com/api/extension-guides/ai/language-model).
 
 Output language follows VS Code's display language. Override it with `codeSubtitle.outputLanguage`; select a Copilot model ID with `codeSubtitle.model` if needed. Both are user-level settings.
 

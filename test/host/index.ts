@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import * as vscode from "vscode";
 import { VscodeSubtitleView } from "../../src/vscode-view.js";
 import type { SubtitleInput } from "../../src/contracts.js";
+import { runSemanticSmoke } from "./semantic.js";
 
 /** Exercises the production renderer without accessing any language model. */
 export async function run(): Promise<void> {
@@ -78,4 +79,5 @@ export async function run(): Promise<void> {
   assert.equal(document.version, before.version);
   assert.equal(document.isDirty, before.dirty);
   console.log("Code Subtitle activation and command smoke: passed.");
+  await runSemanticSmoke();
 }

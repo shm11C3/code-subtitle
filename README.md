@@ -70,7 +70,7 @@ For Japanese, the default target is one sentence and at most 100 characters. Acc
 
 - Chat, a detailed panel, long explanations in Hover, and conversation history.
 - Code generation, completion, or modification, and writing translations back to files.
-- Indexing the entire repository, automatically searching related files, and continuous or proactive generation.
+- Indexing the entire repository, unrestricted related-file search, and continuous or proactive generation.
 - Automated review, comprehensive syntax lessons, and full translation of long comments.
 - A custom AI backend, extension-specific API-key settings, and persistent cache storage.
 
@@ -80,7 +80,9 @@ The extension uses TypeScript and stable VS Code APIs, and sends requests throug
 
 “No API key required” means that Code Subtitle does not require registration of its own API key. The standard MVP path is a GitHub Copilot-provided model available in VS Code, so usage permission, sign-in, initial consent for the extension, and an available quota may be required. This does not promise unconditional free use or offline operation. [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/ai/language-model)
 
-On explicit execution, the selected content and up to five surrounding lines on each side are sent to the model. The extension does not guarantee local execution; data handling depends on the model provider and organization settings. The extension does not save or send code, responses, or file paths through its logs or telemetry, and the cache is limited to memory.
+On explicit execution, the selected content and up to five surrounding lines on each side are sent to the model. With `codeSubtitle.semanticContext` enabled, bounded language-service type information, documentation, and one-hop definition excerpts from the same workspace folder are also included when available. Disable this user-level setting to use only the selection and adjacent lines. Standard TypeScript and TypeScript 7 (tsgo) use the same VS Code provider APIs; no separate language server is launched by this extension. See [semantic context](docs/semantic-context-plan.md) for limits and fallback behavior.
+
+The extension does not guarantee local model execution; data handling depends on the model provider and organization settings. The extension does not save or send code, responses, or file paths through its logs or telemetry, and the cache is limited to memory.
 
 Speed is measured primarily by TTFE (Time To First Explanation: the time until the first subtitle that makes the meaning understandable). With consent granted, the extension already running, and a cache miss, the targets are **a median of no more than one second until a useful subtitle appears and a median of no more than two seconds until completion**. These are unmeasured targets, not guarantees. First use, slow connections, and cache hits will be measured separately.
 

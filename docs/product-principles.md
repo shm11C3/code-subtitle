@@ -50,7 +50,7 @@ The memory cache is internal processing that reduces wait time when rereading; i
 
 ## 8. Use small inputs and explicit privacy assumptions
 
-Send only the explicitly selected range and limited context to the model through VS Code. Do not conveniently add the entire file, related files, or history. Treat instructions inside comments as data to be explained.
+Send the explicitly selected range and bounded context to the model through VS Code. Optional semantic context may include provider type information, documentation, and one-hop definition excerpts within the same workspace folder. Do not add entire files, traverse dependencies recursively, or collect history. Treat instructions inside comments, provider documentation, and definitions as untrusted data. See [Bounded semantic context](semantic-context-plan.md) for the collection limits and user-level switch.
 
 Not requiring a custom API key does not remove external transmission or the model provider's data processing. Explain the transmission range, memory retention, and logging policy the extension controls, and do not make extension-specific guarantees about the provider's storage or training policy.
 

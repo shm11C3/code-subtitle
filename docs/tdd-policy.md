@@ -107,3 +107,17 @@ RED: Tests required the oldest entry to leave a folder after 100 entries, a read
 GREEN: Workspace entries track recency and estimated UTF-16 response and metadata size. Per-folder and global eviction run when new entries are added; only compact metadata is retained alongside the completed text.
 
 The cache tests establish deterministic lifecycle, identity, and capacity behavior. They do not establish the provider's storage, billing, or model-side retention policy.
+
+## Semantic context policy cycles
+
+RED: The semantic-context boundary test required provider evidence to reach the model as an array of only `kind`, `symbol`, and `text`. Local dependency URIs, versions, and arbitrary provider fields had to remain outside the prompt.
+
+GREEN: `buildPrompt` projects each entry through that explicit whitelist and omits `semanticContext` when no usable entries remain. The prompt describes semantic results as optional, untrusted excerpts rather than complete implementations or proof of author intent, and keeps comment-only translation faithful.
+
+RED: The bounded-sanitization test supplied invalid kinds, duplicate entries, oversized symbols and excerpts, extra fields, and more entries than the policy allows. It required valid evidence to stay ordered while staying within nine entries, 1,500 UTF-16 units per entry, and 4,000 aggregate units counting symbols.
+
+GREEN: Policy sanitization filters malformed entries, removes duplicates, drops entries with missing fields or oversized UTF-16 content, and applies the per-entry and aggregate limits before serialization. `POLICY_VERSION` is `3` so cached responses use the revised prompt contract.
+
+RED: The prompt-fitting test required token pressure to remove optional semantic evidence as whole entries before touching adjacent source context, while preserving the selection and ensuring the fitted input describes the entries actually submitted.
+
+GREEN: `fitInput` sanitizes the input once, drops the lowest-priority evidence entry first, then falls back to the existing farthest-context reduction. Dependency metadata may remain on the fitted local input but is never serialized into the model payload.

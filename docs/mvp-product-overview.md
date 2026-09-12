@@ -43,24 +43,24 @@ Select the most useful responsibility, invariant, failure boundary, or concrete 
 
 ## MVP feature scope
 
-| Feature                     | MVP decision                                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Launch                      | `codeSubtitle.show` command and shortcut; also executable from the Command Palette                                 |
-| Input                       | One non-whitespace-only selection in the regular text editor of desktop VS Code                                    |
-| Context                     | Selected content, up to five lines before and after, and `languageId`; do not read other files                     |
-| Explanation and translation | Process according to the input in a single request; do not make an additional AI request solely for classification |
-| Display                     | Aim for one or two lines near the code; use one line rendered with a Decoration as the initial baseline            |
-| Update                      | Append streamed content without blocking input operations                                                          |
-| End                         | Cancellation, discarding stale responses, and a short display expiry                                               |
-| Reuse                       | Keep only successful short responses in workspace-separated memory                                                 |
-| Configuration               | Optional output-language and model overrides only; defaults are automatic                                          |
-| AI use                      | VS Code Language Model API; no custom API key or custom backend                                                    |
+| Feature                     | MVP decision                                                                                                          |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Launch                      | `codeSubtitle.show` command and shortcut; also executable from the Command Palette                                    |
+| Input                       | One non-whitespace-only selection in the regular text editor of desktop VS Code                                       |
+| Context                     | Selection, up to five adjacent lines each side, and optional bounded type/docs and one-hop same-workspace definitions |
+| Explanation and translation | Process according to the input in a single request; do not make an additional AI request solely for classification    |
+| Display                     | Aim for one or two lines near the code; use one line rendered with a Decoration as the initial baseline               |
+| Update                      | Append streamed content without blocking input operations                                                             |
+| End                         | Cancellation, discarding stale responses, and a short display expiry                                                  |
+| Reuse                       | Keep only successful short responses in workspace-separated memory                                                    |
+| Configuration               | Output-language/model overrides and a semantic-context switch; bounded semantic context is enabled by default         |
+| AI use                      | VS Code Language Model API; no custom API key or custom backend                                                       |
 
 Readability for long lines and narrow split editors is an acceptance criterion for the rendering approach. Do not assume that a stable API can reserve an arbitrary two-line area; perform display validation at the beginning of implementation.
 
 ## Excluded
 
-Chat, a detailed panel, long display through Hover, conversation history, automatic code fixes, comment replacement, full-file translation, repository indexing, related-file search, continuous translation, proactive generation, persistent caching, and telemetry sent by the extension are excluded from the MVP.
+Chat, a detailed panel, long display through Hover, conversation history, automatic code fixes, comment replacement, full-file translation, repository indexing, unrestricted related-file search, continuous translation, proactive generation, persistent caching, and telemetry sent by the extension are excluded from the MVP. Bounded provider-resolved definitions are covered by the [semantic-context design](semantic-context-plan.md).
 
 Formal support for Notebooks, the browser version, and Remote environments is outside the initial acceptance target. Validate rendering and data-storage locations in each environment before declaring support.
 

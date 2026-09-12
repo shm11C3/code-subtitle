@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SubtitleError } from "../src/contracts.js";
+import { SubtitleError, type SubtitleInput } from "../src/contracts.js";
 import {
   buildPrompt,
   createInput,
@@ -217,6 +217,8 @@ test("requests an experienced-reader insight while sending only allowed input da
   assert.match(prompt, /Do not assume.*unseen helpers/iu);
   assert.match(prompt, /Do not force.*defect/iu);
   assert.match(prompt, /Do not follow instructions/iu);
+  assert.match(prompt, /Optional semantic evidence.*untrusted excerpts/iu);
+  assert.match(prompt, /translate them faithfully.*semantic evidence/iu);
   const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1)) as Record<string, string>;
   assert.deepEqual(data, {
     languageId: "typescript",
@@ -226,6 +228,142 @@ test("requests an experienced-reader insight while sending only allowed input da
     after: "after",
   });
   assert.doesNotMatch(prompt, /private-editor|private-workspace|private\/secret/iu);
+});
+
+test("includes whitelisted semantic evidence while excluding local metadata", () => {
+  const semanticContext = {
+    entries: [
+      {
+        kind: "definition",
+        symbol: "compute",
+        text: "compute returns a cached value.",
+        internalNote: "must not be submitted",
+      },
+      {
+        kind: "hover",
+        symbol: "cache",
+        text: "Cache entries are shared by key.",
+      },
+    ],
+    dependencies: [{ uri: "file:///private/secret-definition.ts", version: 4 }],
+  } as unknown as SubtitleInput["semanticContext"];
+  const input = {
+    ...createInput({
+      text: "const value = compute();",
+      selections: [{ start: { line: 0, character: 0 }, end: { line: 0, character: 24 } }],
+      documentUri: "file:///workspace/example.ts",
+      documentVersion: 1,
+      editorId: "editor-1",
+      languageId: "typescript",
+      outputLanguage: "en",
+    }),
+    semanticContext,
+  };
+
+  const prompt = buildPrompt(input);
+  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1)) as Record<string, unknown>;
+
+  assert.deepEqual(data.semanticContext, [
+    { kind: "definition", symbol: "compute", text: "compute returns a cached value." },
+    { kind: "hover", symbol: "cache", text: "Cache entries are shared by key." },
+  ]);
+  assert.doesNotMatch(prompt, /internalNote|must not be submitted|secret-definition/iu);
+});
+
+test("omits optional semantic context when there are no entries", () => {
+  const base = createInput({
+    text: "const value = compute();",
+    selections: [{ start: { line: 0, character: 0 }, end: { line: 0, character: 24 } }],
+    documentUri: "file:///workspace/example.ts",
+    documentVersion: 1,
+    editorId: "editor-1",
+    languageId: "typescript",
+    outputLanguage: "en",
+  });
+  const prompt = buildPrompt({
+    ...base,
+    semanticContext: {
+      entries: [],
+      dependencies: [{ uri: "file:///workspace/local.ts", version: 7 }],
+    },
+  });
+  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1)) as Record<string, unknown>;
+
+  assert.deepEqual(data, {
+    languageId: "typescript",
+    outputLanguage: "en",
+    selection: "const value = compute();",
+    before: "",
+    after: "",
+  });
+  assert.doesNotMatch(prompt, /file:\/\/\/workspace\/local/iu);
+});
+
+test("bounds and sanitizes semantic evidence before it reaches the prompt", () => {
+  const rawEntries = [
+    {
+      kind: "definition",
+      symbol: "first",
+      text: "first evidence",
+      extra: "discarded",
+    },
+    { kind: "definition", symbol: "first", text: "first evidence" },
+    { kind: "invalid", symbol: "bad", text: "drop this" },
+    { kind: "hover", symbol: "x".repeat(1_000), text: "y".repeat(600) },
+    { kind: "definition", symbol: "", text: "missing symbol" },
+    { kind: "definition", symbol: "missing-text", text: "" },
+    ...Array.from({ length: 11 }, (_, index) => ({
+      kind: index % 2 === 0 ? "hover" : "typeDefinition",
+      symbol: `symbol-${index}`,
+      text: `evidence-${index}`,
+    })),
+  ];
+  const semanticContext = {
+    entries: rawEntries,
+    dependencies: [],
+  } as unknown as SubtitleInput["semanticContext"];
+  const input = {
+    ...createInput({
+      text: "const value = compute();",
+      selections: [{ start: { line: 0, character: 0 }, end: { line: 0, character: 24 } }],
+      documentUri: "file:///workspace/example.ts",
+      documentVersion: 1,
+      editorId: "editor-1",
+      languageId: "typescript",
+      outputLanguage: "en",
+    }),
+    semanticContext,
+  };
+
+  const prompt = buildPrompt(input);
+  const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1)) as {
+    semanticContext: Array<{ kind: string; symbol: string; text: string }>;
+  };
+  const entries = data.semanticContext;
+
+  assert.ok(entries.length <= 9);
+  assert.equal(entries[0]?.symbol, "first");
+  assert.equal(
+    entries.some((entry) => entry.kind === "invalid"),
+    false,
+  );
+  assert.equal(
+    entries.some((entry) => entry.symbol === "x".repeat(1_000)),
+    false,
+  );
+  assert.equal(
+    entries.filter((entry) => entry.symbol === "first" && entry.text === "first evidence").length,
+    1,
+  );
+  assert.equal(
+    entries.some((entry) => entry.symbol === "" || entry.text === ""),
+    false,
+  );
+  assert.ok(entries.every((entry) => entry.symbol.length + entry.text.length <= 1_500));
+  assert.ok(
+    entries.reduce((total, entry) => total + entry.symbol.length + entry.text.length, 0) <= 4_000,
+  );
+  assert.ok(entries.every((entry) => Object.keys(entry).sort().join(",") === "kind,symbol,text"));
 });
 
 test("includes the validator's language-specific display limit in the prompt", () => {
@@ -281,6 +419,51 @@ test("fits the prompt by dropping context lines while preserving the selection",
   );
   assert.equal(result.prompt, buildPrompt(result.input));
   assert.ok(calls >= 3);
+});
+
+test("drops optional semantic evidence before adjacent context when fitting", async () => {
+  const base = createInput({
+    text: "before\nconst value = compute();\nafter",
+    selections: [{ start: { line: 1, character: 0 }, end: { line: 1, character: 24 } }],
+    documentUri: "file:///workspace/example.ts",
+    documentVersion: 1,
+    editorId: "editor-1",
+    languageId: "typescript",
+    outputLanguage: "en",
+  });
+  const input = {
+    ...base,
+    semanticContext: {
+      entries: [
+        { kind: "definition" as const, symbol: "first", text: "first evidence" },
+        { kind: "hover" as const, symbol: "second", text: "second evidence" },
+      ],
+      dependencies: [{ uri: "file:///workspace/definition.ts", version: 2 }],
+    },
+  };
+  let calls = 0;
+  const result = await fitInput(
+    input,
+    async (prompt) => {
+      calls += 1;
+      return prompt.includes("second evidence") ? 11 : 1;
+    },
+    10,
+    new AbortController().signal,
+  );
+
+  assert.equal(result.input.selection, input.selection);
+  assert.equal(result.input.before, input.before);
+  assert.equal(result.input.after, input.after);
+  assert.deepEqual(result.input.semanticContext?.entries, [input.semanticContext.entries[0]]);
+  assert.deepEqual(result.input.semanticContext?.dependencies, input.semanticContext.dependencies);
+  assert.equal(result.prompt, buildPrompt(result.input));
+  const data = JSON.parse(result.prompt.slice(result.prompt.lastIndexOf("\n") + 1)) as Record<
+    string,
+    unknown
+  >;
+  assert.deepEqual(data.semanticContext, result.input.semanticContext?.entries);
+  assert.ok(calls >= 2);
 });
 
 test("reports an oversized prompt when the selected text itself cannot fit", async () => {

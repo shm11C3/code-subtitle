@@ -5,14 +5,16 @@ import { MemorySubtitleCache } from "./cache.js";
 import { SubtitleSession } from "./session.js";
 import { VscodeModelGateway, type VscodeModelGatewayOptions } from "./vscode-model.js";
 import { VscodeSubtitleView } from "./vscode-view.js";
+import { VscodeSemanticContextProvider } from "./vscode-semantic.js";
 
-const DISCLOSURE_KEY = "codeSubtitle.firstUseDisclosureShown";
+const DISCLOSURE_KEY = "codeSubtitle.semanticContextDisclosureShown";
 
 interface ActiveRequest {
   readonly input: SubtitleInput;
   readonly editor: vscode.TextEditor;
   readonly modelSetting: string;
   readonly outputLanguage: string;
+  readonly semanticContext: boolean;
 }
 
 interface ExtensionRuntime {
@@ -59,6 +61,10 @@ export function activate(context: vscode.ExtensionContext): void {
     return configured.trim().length === 0 ? "auto" : configured.trim();
   };
 
+  const semanticEnabled = (): boolean =>
+    vscode.workspace.getConfiguration("codeSubtitle").get<boolean>("semanticContext", true);
+  const semanticProvider = new VscodeSemanticContextProvider(vscode);
+
   const lookupEditor = (input: SubtitleInput): vscode.TextEditor | undefined => {
     const editor = editorsById.get(input.editorId);
     if (!editor || editor.document.uri.toString() !== input.documentUri) {
@@ -78,7 +84,12 @@ export function activate(context: vscode.ExtensionContext): void {
     picker: {
       showQuickPick: (items, options, token) => vscode.window.showQuickPick(items, options, token),
     },
-    fitInput,
+    fitInput: async (input, countTokens, maxTokens, signal) => {
+      const enriched = semanticEnabled()
+        ? { ...input, semanticContext: await semanticProvider.collect(input, signal) }
+        : input;
+      return fitInput(enriched, countTokens, maxTokens, signal);
+    },
     modelSetting: modelSetting(),
   });
   const view = new VscodeSubtitleView(lookupEditor);
@@ -100,6 +111,7 @@ export function activate(context: vscode.ExtensionContext): void {
       editor.document.version !== input.documentVersion ||
       !sameEditorSelection(editor, input.range) ||
       outputLanguage(editor.document) !== active.outputLanguage ||
+      semanticEnabled() !== active.semanticContext ||
       modelSetting() !== active.modelSetting
     ) {
       return false;
@@ -112,6 +124,21 @@ export function activate(context: vscode.ExtensionContext): void {
   const dismissActive = (): void => {
     activeRequest = undefined;
     session.dismiss();
+  };
+
+  const invalidateSource = (uri: vscode.Uri): void => {
+    const documentUri = uri.toString();
+    session.invalidateDocument(documentUri);
+    const workspaceId = semanticEnabled()
+      ? vscode.workspace.getWorkspaceFolder(uri)?.uri.toString()
+      : undefined;
+    if (workspaceId) session.invalidateWorkspace(workspaceId);
+    if (
+      activeRequest?.input.documentUri === documentUri ||
+      (workspaceId !== undefined && activeRequest?.input.workspaceId === workspaceId)
+    ) {
+      activeRequest = undefined;
+    }
   };
 
   const show = async (): Promise<void> => {
@@ -150,6 +177,7 @@ export function activate(context: vscode.ExtensionContext): void {
       editor,
       modelSetting: currentModelSetting,
       outputLanguage: snapshot.outputLanguage,
+      semanticContext: semanticEnabled(),
     };
     showFirstUseDisclosure(context);
     await session.show(input);
@@ -164,6 +192,17 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   ];
   context.subscriptions.push(...commands);
+
+  const sourceWatcher = vscode.workspace.createFileSystemWatcher("**/*");
+  const invalidateDiskSource = (uri: vscode.Uri): void => {
+    if (semanticEnabled()) invalidateSource(uri);
+  };
+  context.subscriptions.push(
+    sourceWatcher,
+    sourceWatcher.onDidChange(invalidateDiskSource),
+    sourceWatcher.onDidCreate(invalidateDiskSource),
+    sourceWatcher.onDidDelete(invalidateDiskSource),
+  );
 
   context.subscriptions.push(
     vscode.window.onDidChangeTextEditorSelection((event) => {
@@ -190,18 +229,11 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.workspace.onDidChangeTextDocument((event) => {
-      const uri = event.document.uri.toString();
-      session.invalidateDocument(uri);
-      if (activeRequest?.input.documentUri === uri) {
-        activeRequest = undefined;
-      }
+      invalidateSource(event.document.uri);
     }),
     vscode.workspace.onDidCloseTextDocument((document) => {
       const uri = document.uri.toString();
-      session.invalidateDocument(uri);
-      if (activeRequest?.input.documentUri === uri) {
-        activeRequest = undefined;
-      }
+      invalidateSource(document.uri);
       for (const [id, editor] of editorsById) {
         if (editor.document.uri.toString() === uri) {
           editorsById.delete(id);
@@ -220,7 +252,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (
         !event.affectsConfiguration("codeSubtitle.outputLanguage") &&
-        !event.affectsConfiguration("codeSubtitle.model")
+        !event.affectsConfiguration("codeSubtitle.model") &&
+        !event.affectsConfiguration("codeSubtitle.semanticContext") &&
+        !semanticEnabled()
       ) {
         return;
       }
@@ -264,7 +298,7 @@ function showFirstUseDisclosure(context: vscode.ExtensionContext): void {
   }
   void context.globalState.update(DISCLOSURE_KEY, true);
   void vscode.window.showInformationMessage(
-    "Code Subtitle sends the selection and up to 5 lines before and after it to VS Code's model.",
+    "Code Subtitle sends the selection, nearby lines, and optional language-service type/docs and same-workspace definition excerpts to VS Code's model. Disable semantic context in Code Subtitle settings to send only the selection and nearby lines.",
   );
 }
 

@@ -17,6 +17,18 @@ The main session owns the build harness and real extension-host tests. Individua
 
 The main session also added regression checks around the real extension, session, policy, cache, and model gateway with only the VS Code boundary substituted. These verified successful initial consent, selection cancellation without resubmission, document-edit invalidation, and workspace-removal invalidation. The consent bug was identified by code review and corrected by the adapter agent before the new test ran; this is regression verification, not a claimed failing-first cycle.
 
+## Semantic context integration
+
+The following public extension flows were exercised with real session, policy, cache, model gateway, and semantic collector modules, substituting only VS Code and the model boundary:
+
+- RED: explicit execution sent no provider evidence. GREEN: the gateway's input preparation now collects optional evidence before token fitting and cache lookup.
+- RED: editing another document in the workspace left a semantic subtitle visible and reusable. GREEN: semantic mode conservatively invalidates the containing workspace and active request.
+- RED: filesystem dependency changes left a cached result visible. GREEN: create/change/delete events invalidate semantic results in the affected workspace.
+- RED: disabling semantic context left enriched results visible. GREEN: the setting change clears results, and subsequent commands query no semantic providers and omit evidence from the prompt.
+- RED: configuration changes belonging to another language provider did not clear semantic results. GREEN: semantic mode invalidates on configuration changes without requiring a language-specific setting list.
+
+A further regression test confirms that a dependency edit during an uncooperative provider request prevents model submission, even after the provider eventually resolves. It passed immediately using the existing cancellation path and is not claimed as a failing-first cycle.
+
 ## Parallel iteration
 
 `node scripts/test-slice.cjs <name>` transpiles and runs one role's behavioral test file independently. It intentionally skips type checking during the local RED/GREEN iteration so another role's intermediate type errors do not block unrelated behavior tests. Final acceptance requires the complete `npm run check` and `npm test`; a slice result alone is insufficient.

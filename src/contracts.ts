@@ -19,6 +19,23 @@ export interface SubtitleInput {
   selection: string;
   before: string;
   after: string;
+  semanticContext?: SemanticContext;
+}
+
+export interface SemanticEntry {
+  kind: "hover" | "definition" | "typeDefinition";
+  symbol: string;
+  text: string;
+}
+
+export interface SemanticContext {
+  entries: SemanticEntry[];
+  /** Local freshness metadata; never include these URIs in the model payload. */
+  dependencies: { uri: string; version: number }[];
+}
+
+export interface SemanticContextProvider {
+  collect(input: SubtitleInput, signal: AbortSignal): Promise<SemanticContext>;
 }
 
 export interface ModelIdentity {

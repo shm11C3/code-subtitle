@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Module from "node:module";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 type ActivatedExtension = typeof import("../src/extension.js");
 
 function event<T>() {
@@ -17,7 +21,22 @@ function event<T>() {
 }
 
 /** A VS Code boundary fixture; session, policy, cache, gateway, and view remain real. */
-function fixture() {
+function fixture(options: { semanticContext?: boolean } = {}) {
+  const directory = options.semanticContext
+    ? mkdtempSync(join(tmpdir(), "subtitle-integration-"))
+    : undefined;
+  const rootUri = directory ? pathToFileURL(directory).toString() : "file:///fixture";
+  const uri = (value: string) => ({
+    scheme: new URL(value).protocol.slice(0, -1),
+    path: new URL(value).pathname,
+    authority: new URL(value).host,
+    fsPath: fileURLToPath(value),
+    toString: () => value,
+  });
+  if (directory) writeFileSync(join(directory, "example.ts"), "return value;");
+  let semanticEnabled = options.semanticContext ?? false;
+  const prompts: string[] = [];
+  const providerCalls: string[] = [];
   const selectionChanged = event<any>();
   const editorChanged = event<any>();
   const visibleChanged = event<any>();
@@ -27,6 +46,7 @@ function fixture() {
   const settingsChanged = event<any>();
   const modelsChanged = event<void>();
   const accessChanged = event<void>();
+  const fileChanged = event<any>();
   const commands = new Map<string, (...args: any[]) => any>();
   const notifications: string[] = [];
   const displays: string[] = [];
@@ -35,7 +55,7 @@ function fixture() {
   let granted = false;
   let holdStream: (() => Promise<void>) | undefined;
   const document = {
-    uri: { toString: () => "file:///fixture/example.ts" },
+    uri: uri(`${rootUri}/example.ts`),
     version: 1,
     languageId: "typescript",
     lineCount: 1,
@@ -58,7 +78,8 @@ function fixture() {
     version: "1",
     maxInputTokens: 10000,
     countTokens: async () => 100,
-    sendRequest: async () => {
+    sendRequest: async (messages: { content: string }[]) => {
+      prompts.push(messages[0]!.content);
       sends++;
       if (!granted) {
         granted = true;
@@ -79,7 +100,15 @@ function fixture() {
         commands.set(name, callback);
         return { dispose: () => commands.delete(name) };
       },
-      executeCommand: async (name: string, ...args: any[]) => commands.get(name)?.(...args),
+      executeCommand: async (name: string, ...args: any[]) => {
+        if (name.startsWith("vscode.execute")) {
+          providerCalls.push(name);
+          return name === "vscode.executeHoverProvider"
+            ? [{ contents: [{ value: "const value: 42" }] }]
+            : [];
+        }
+        return commands.get(name)?.(...args);
+      },
     },
     window: {
       activeTextEditor: editor,
@@ -94,8 +123,19 @@ function fixture() {
       onDidChangeTextEditorVisibleRanges: visibleChanged.subscribe,
     },
     workspace: {
-      getConfiguration: () => ({ get: (name: string) => (name === "model" ? "test-model" : "en") }),
-      getWorkspaceFolder: () => ({ uri: { toString: () => "file:///fixture" } }),
+      getConfiguration: () => ({
+        get: (name: string) =>
+          name === "semanticContext" ? semanticEnabled : name === "model" ? "test-model" : "en",
+      }),
+      isTrusted: true,
+      openTextDocument: async () => document,
+      getWorkspaceFolder: () => ({ uri: uri(rootUri) }),
+      createFileSystemWatcher: () => ({
+        onDidChange: fileChanged.subscribe,
+        onDidCreate: fileChanged.subscribe,
+        onDidDelete: fileChanged.subscribe,
+        dispose() {},
+      }),
       onDidChangeTextDocument: documentChanged.subscribe,
       onDidCloseTextDocument: documentClosed.subscribe,
       onDidChangeConfiguration: settingsChanged.subscribe,
@@ -116,6 +156,13 @@ function fixture() {
         readonly end: unknown,
       ) {}
     },
+    Position: class {
+      constructor(
+        readonly line: number,
+        readonly character: number,
+      ) {}
+    },
+    Uri: { parse: uri },
     ThemeColor: class {
       constructor(readonly id: string) {}
     },
@@ -155,6 +202,14 @@ function fixture() {
     selectionChanged,
     documentChanged,
     foldersChanged,
+    rootUri,
+    providerCalls,
+    prompts,
+    fileChanged,
+    settingsChanged,
+    setSemanticContext: (value: boolean) => {
+      semanticEnabled = value;
+    },
     get text() {
       return currentText;
     },
@@ -170,9 +225,134 @@ function fixture() {
     dispose: () => {
       extension.deactivate();
       for (const item of context.subscriptions) item.dispose();
+      if (directory) rmSync(directory, { recursive: true, force: true });
     },
   };
 }
+
+test("an explicit command includes provider evidence in the model request", async () => {
+  const app = fixture({ semanticContext: true });
+  try {
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    assert.ok(app.providerCalls.includes("vscode.executeHoverProvider"));
+    const prompt = app.prompts[0]!;
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1));
+    assert.ok(
+      data.semanticContext.some((entry: { text: string }) =>
+        entry.text.includes("const value: 42"),
+      ),
+    );
+    assert.ok(!prompt.includes(app.rootUri));
+  } finally {
+    app.dispose();
+  }
+});
+
+test("workspace dependency edits invalidate semantic results before reuse", async () => {
+  const app = fixture({ semanticContext: true });
+  try {
+    await app.command("show");
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    app.documentChanged.fire({
+      document: { uri: app.api.Uri.parse(`${app.rootUri}/dependency.ts`) },
+    });
+    assert.equal(app.text, "");
+    await app.command("show");
+    assert.equal(app.sends, 2);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("filesystem dependency changes clear semantic results", async () => {
+  const app = fixture({ semanticContext: true });
+  try {
+    await app.command("show");
+    app.fileChanged.fire(app.api.Uri.parse(`${app.rootUri}/dependency.ts`));
+    assert.equal(app.text, "");
+    await app.command("show");
+    assert.equal(app.sends, 2);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("disabling semantic context clears enriched results and stops provider requests", async () => {
+  const app = fixture({ semanticContext: true });
+  try {
+    await app.command("show");
+    const before = app.providerCalls.length;
+    app.setSemanticContext(false);
+    app.settingsChanged.fire({
+      affectsConfiguration: (name: string) => name === "codeSubtitle.semanticContext",
+    });
+    assert.equal(app.text, "");
+    await app.command("show");
+    assert.equal(app.sends, 2);
+    assert.equal(app.providerCalls.length, before);
+    const prompt = app.prompts.at(-1)!;
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1));
+    assert.equal(data.semanticContext, undefined);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("language-provider configuration changes invalidate semantic results", async () => {
+  const app = fixture({ semanticContext: true });
+  try {
+    await app.command("show");
+    app.settingsChanged.fire({ affectsConfiguration: (name: string) => name === "rust-analyzer" });
+    assert.equal(app.text, "");
+    await app.command("show");
+    assert.equal(app.sends, 2);
+  } finally {
+    app.dispose();
+  }
+});
+
+test(
+  "a dependency edit while a provider is pending prevents model submission",
+  { timeout: 2_000 },
+  async () => {
+    const app = fixture({ semanticContext: true });
+    let enter!: () => void;
+    let release!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const execute = app.api.commands.executeCommand;
+    app.api.commands.executeCommand = async (name: string, ...args: unknown[]) => {
+      if (name === "vscode.executeHoverProvider") {
+        enter();
+        await held;
+      }
+      return execute(name, ...args);
+    };
+    try {
+      const running = app.command("show");
+      await entered;
+      app.documentChanged.fire({
+        document: { uri: app.api.Uri.parse(`${app.rootUri}/dependency.ts`) },
+      });
+      await running;
+      assert.equal(app.sends, 0);
+      assert.equal(app.text, "");
+      release();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      assert.equal(app.sends, 0);
+      assert.deepEqual(app.notifications, []);
+    } finally {
+      release();
+      app.dispose();
+    }
+  },
+);
 
 test("granting first-use model consent still displays the requested subtitle", async () => {
   const app = fixture();

@@ -5,14 +5,14 @@ Status: local preview implemented on 2026-09-12. Deterministic and extension-hos
 ## Environment
 
 - macOS arm64, desktop VS Code 1.135.0.
-- Node.js 24.11.1 for local development; Node.js 22 types and CI target.
+- Node.js 24.11.1 for local development; Node.js 26.5.1 types and Node.js 22 CI target.
 - VS Code API types 1.134.0; only stable APIs.
 - Isolated extension-host profile and synthetic input for renderer tests.
 
 ## Observed results
 
 - `npm run check`: passed.
-- `npm test`: 57 tests passed across policy, cache, session, model adapter, and event integration.
+- `npm test`: 78 tests passed across policy, cache, session, model adapter, semantic provider, and event integration.
 - `npm run package`: produced the local `code-subtitle-0.0.1.vsix` preview.
 - VSIX inspection: runtime JavaScript, manifest, and preview README included; no test fixtures, development dependencies, source maps, or local test profile.
 - Real extension-host activation: all three commands registered; dismiss and clear-cache executed without document mutation.
@@ -28,6 +28,20 @@ On 2026-09-12, prompt policy version `2` added an experienced OSS/code-review au
 The updated VSIX was packaged and reinstalled in the normal VS Code profile. The installed `policy.js` SHA-256 matched the build output. Reload the VS Code window to activate the updated prompt in an existing extension host.
 
 `npm run lint` passed after adding the type-aware Oxlint runtime dependency and resolving the reported diagnostics. `npm run fmt:check` also passed.
+
+## Bounded semantic context revision
+
+Prompt policy version `3` adds whitelisted optional provider evidence while keeping dependency URI/version metadata local. The new `codeSubtitle.semanticContext` user setting defaults to enabled. Collection is bounded to three selected identifiers, one-hop workspace definitions, a 600 ms deadline, and 4,000 UTF-16 code units of evidence. Provider failures/timeouts fall back without a second model call. Same-workspace changes and configuration changes conservatively invalidate semantic results.
+
+On 2026-09-12, `npm run check`, all 78 tests, `npm run lint`, and `npm run fmt:check` passed. Final real-host runs passed with VS Code 1.135.0 on macOS arm64 in both modes:
+
+- Built-in TypeScript: real Hover, Definition, and Type Definition results plus the production semantic collector.
+- Native TypeScript 7: installed `TypeScriptTeam.native-preview` 0.20260708.2 copied into an isolated profile, with `js/ts.experimental.useTsgo` enabled; the same checks passed.
+- Both modes resolved an imported helper in a different file and included its implementation body and local dependency version. Source/helper text, document versions, dirty state, and editor selection remained unchanged.
+
+See [Semantic host validation](semantic-host-validation.md) for reproducible commands. No live model request was made; these results establish context retrieval and deterministic behavior, not improved generated explanations or end-to-end latency.
+
+The semantic-context VSIX was packaged and reinstalled into the normal VS Code profile. Installed `extension.js`, `policy.js`, and `vscode-semantic.js` matched the build byte-for-byte, and the installed setting defaults to enabled. Reload an existing VS Code window to activate this build.
 
 ## Acceptance still requiring direct observation
 

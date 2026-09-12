@@ -25,6 +25,8 @@ npm run test:host
 
 The runner defaults to the standard macOS VS Code executable. Set `VSCODE_EXECUTABLE` to a desktop VS Code executable on other systems. It uses an isolated `.test-host` profile and extension directory. The production renderer displays synthetic text and checks that the source, document version, dirty state, active editor, and selection are unchanged. It makes no model requests.
 
+The same host also exercises real TypeScript provider commands and the semantic collector. Run `CODE_SUBTITLE_SEMANTIC_HOST=native npm run test:host` to check TypeScript 7 (tsgo) using an installed native extension copied into the isolated profile. See [Semantic host validation](semantic-host-validation.md) for setup and coverage.
+
 For a visual inspection, set `CODE_SUBTITLE_VISUAL_CHECK=1` when running the command. Use the **Next** and **Finish** notification buttons to inspect the normal, long-line, and split-editor scenarios. This fixture is excluded from the VSIX.
 
 ## Manual acceptance

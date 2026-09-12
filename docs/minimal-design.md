@@ -40,8 +40,9 @@ When `codeSubtitle.show` runs, read `window.activeTextEditor`, `editor.selection
 - The target is one non-empty selection. Do not submit when there are multiple selections, the selection contains only whitespace, or there is no editor; show brief guidance instead.
 - Limit the selection to 80 actually selected lines and 8,000 UTF-16 code units, matching VS Code's text offsets. If it exceeds either limit, do not silently truncate it; ask the user to narrow the range.
 - Use up to 5 whole lines immediately before and after the selected lines in the same document, with a total maximum of 2,000 UTF-16 code units. Exclude the farthest whole lines first, removing the preceding line first when distances tie, and keep the selection itself. Unselected prefixes and suffixes on the selected boundary lines are not sent.
-- Include only the instruction, output language, `languageId`, selection, and the context above in the request. Do not collect file paths, Git information, environment variables, or related files.
-- Use `countTokens` to confirm that the actual prompt sent to the model fits within the model's `maxInputTokens`. If it exceeds the limit, reduce the surrounding context; if the selection alone does not fit, do not submit it.
+- Optionally include bounded Hover, Definition, and Type Definition evidence for at most three selected identifiers using VS Code's provider APIs. Explicit definition reads stay one hop away within the originating workspace folder. The total collection deadline is 600 ms and the evidence budget is 4,000 UTF-16 code units. Missing, failed, or slow providers fall back to the basic input. See [Bounded semantic context](semantic-context-plan.md).
+- Send evidence kind, symbol, and text only; keep dependency URI/version metadata local. Do not collect Git information or environment variables. Provider text is untrusted evidence and may be an incomplete excerpt.
+- Use `countTokens` to confirm that the actual prompt sent to the model fits within the model's `maxInputTokens`. If it exceeds the limit, drop optional semantic entries before reducing adjacent context; if the selection alone does not fit, do not submit it.
 - When the selection end is at the start of the next line, place the display anchor on the actual last line selected.
 
 Use for the cache the same input that is actually sent after applying the limits. Recheck that the snapshot is still valid while waiting for model resolution or token counting.
@@ -126,7 +127,7 @@ Separate multiple roots by folder. For documents outside a workspace or unsaved 
 
 The key is a hash of normalized input containing the workspace identifier, document URI, selection position, the actual selection and surrounding context sent, `languageId`, output language, processing-rules version, model vendor/id/version, and prompt version. Use the URI only for local matching. Do not send a body hash externally, and do not treat it as anonymized data.
 
-Use `document.version` to determine whether an in-flight request has become stale. On a document edit, delete both caches for that document. Do not reuse a result when the language, model, prompt, or context changes. A model-list change also invalidates model resolution and both caches.
+Use `document.version` to determine whether an in-flight request has become stale. On a document edit, delete both caches for that document. With semantic context enabled, also invalidate the containing workspace cache and active request on document or filesystem changes so referenced definitions cannot remain stale. Resolve evidence before each cache lookup; the actual fitted prompt participates in cache identity. Do not reuse a result when the language, model, prompt, or context changes. A model-list change also invalidates model resolution and both caches.
 
 Save only a non-empty subtitle from the current request after normal completion and after it satisfies the length and format conditions. Do not save cancellations, failures, or partial output. On a hit, show the completed text immediately; do not animate it one character at a time or communicate with the model again. `codeSubtitle.clearCache` deletes both layers and cancels in-flight requests, and must prevent an immediate result from being saved again.
 
@@ -147,11 +148,11 @@ Limit the `Esc` binding by subtitle state and editor focus, and confirm its prio
 
 ## 9. Privacy and failure handling
 
-Code Subtitle sends code to a model only after an explicit operation. On first use, tell the user: “The selection and up to 5 lines before and after it will be sent to VS Code's model.” Do not promise that secret detection can completely eliminate adjacent secrets. Do not scan files or repositories to supplement the request.
+Code Subtitle sends code to a model only after an explicit operation. The first-use disclosure describes the selection, adjacent lines, and optional language-service type/docs and same-workspace definition excerpts. Explain how to disable semantic context in user settings. Do not promise that secret detection can completely eliminate adjacent secrets. Only bounded provider-resolved definitions may supplement the request; do not scan the repository.
 
 Do not provide a custom backend or send telemetry. Do not write prompts, code, subtitles, or URIs to logs, exception messages, or persistent storage. Do not display or record model errors as-is; convert them into the permitted failure categories and brief guidance. The model provider and organization settings control the provider's terms for destinations, retention, training, and billing.
 
-Design the MVP as an extension that only reads the selection, so Restricted Mode does not require code execution or loading repository-derived settings. Workspace Trust does not replace consent to send code. Follow VS Code and organization restrictions on model use, and never execute generated results or input comments. Do not convert Markdown into trusted command links. [Workspace Trust guide](https://code.visualstudio.com/api/extension-guides/workspace-trust)
+In Restricted Mode, use only the selection and adjacent lines; skip semantic collection. Workspace Trust does not replace consent to send code. Follow VS Code and organization restrictions on model use, and never execute generated results or input comments. Do not convert Markdown into trusted command links. [Workspace Trust guide](https://code.visualstudio.com/api/extension-guides/workspace-trust)
 
 | Failure                                    | Behavior                                                                             |
 | ------------------------------------------ | ------------------------------------------------------------------------------------ |

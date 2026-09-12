@@ -2,6 +2,8 @@
 
 Status: approved by the user on 2026-09-12; local preview implemented. See [validation](validation.md) for completed checks and outstanding product acceptance.
 
+The user subsequently authorized [bounded semantic context](semantic-context-plan.md), extending the original selection-only data boundary through VS Code provider APIs. That plan records the additional limits, fallback, configuration, and regression cases.
+
 ## Outcome
 
 A locally installable desktop VS Code extension that turns one explicit selection into a short, streamed subtitle without editing the document or interrupting reading. The existing product overview and minimal design define the scope. Publishing to a marketplace and choosing an OSS license are separate release decisions.

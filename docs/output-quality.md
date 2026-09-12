@@ -162,4 +162,12 @@ A shorter equivalent such as “It returns the result produced by transforming i
 
 ## Interpretation limits
 
+For semantic-context evaluation, also compare the following pair with the same model and output language, clearing the cache between runs:
+
+- Select `return normalize(left) === normalize(right);` in a file importing `normalize` from another file in the same workspace folder.
+- Define `normalize` as `export function normalize(value: string) { return value.trim().toLowerCase(); }` in that other file.
+- With semantic context disabled, accept a bounded description of comparison through an unknown normalization function; reject invented normalization rules.
+- With semantic context enabled and the definition returned, expect the subtitle to identify that comparison ignores leading/trailing whitespace and case. Reject claims about Unicode normalization, locale-aware comparison, security, or author intent that the definition does not establish.
+- Change the definition to return only `value.trim()` and invoke again. The result must no longer attribute case folding to the visible implementation. Provider tests can establish the changed evidence and cache behavior; only an observed model run can establish the wording.
+
 This set is intentionally small and local. It samples six engineering behaviors plus one comment translation case; passing it does not establish general model quality, correctness across languages, or usefulness across a repository. Live Copilot output remains unevaluated until someone runs these cases in the product. No live model request is part of this document, and unit tests for prompt construction or output validation must not be reported as evidence that the generated subtitles are good.
