@@ -6,6 +6,7 @@ import {
   createInput,
   fitInput,
   graphemeLength,
+  needsTokenCount,
   normalizeOutput,
   outputLimit,
   outputTarget,
@@ -501,6 +502,71 @@ test("drops optional semantic evidence before adjacent context when fitting", as
   >;
   assert.deepEqual(data.semanticContext, result.input.semanticContext?.entries);
   assert.ok(calls >= 2);
+});
+
+test("counts tokens only when the UTF-8 byte length can exceed the budget", () => {
+  assert.equal(needsTokenCount("abcd", 4), false);
+  assert.equal(needsTokenCount("abcd", 3), true);
+  assert.equal(needsTokenCount("日本", 6), false);
+  assert.equal(needsTokenCount("日本", 5), true);
+});
+
+test("skips the token counter when the prompt bytes already fit the model budget", async () => {
+  const input = createInput({
+    text: "before\nconst value = compute();\nafter",
+    selections: [{ start: { line: 1, character: 0 }, end: { line: 1, character: 24 } }],
+    documentUri: "file:///workspace/example.ts",
+    documentVersion: 1,
+    editorId: "editor-1",
+    languageId: "typescript",
+    outputLanguage: "en",
+  });
+  let calls = 0;
+  const result = await fitInput(
+    input,
+    async () => {
+      calls += 1;
+      return 1;
+    },
+    1_000_000,
+    new AbortController().signal,
+  );
+
+  assert.equal(calls, 0);
+  assert.equal(result.prompt, buildPrompt(input));
+  assert.equal(result.input.before, "before");
+  assert.equal(result.input.after, "after");
+});
+
+test("rechecks the byte bound before each later token count while reducing context", async () => {
+  const before = Array.from({ length: 5 }, (_, index) => `before-${index}`.padEnd(300, "b"));
+  const after = Array.from({ length: 5 }, (_, index) => `after-${index}`.padEnd(300, "a"));
+  const input = createInput({
+    text: [...before, "selected", ...after].join("\n"),
+    selections: [{ start: { line: 5, character: 0 }, end: { line: 5, character: 8 } }],
+    documentUri: "file:///workspace/example.ts",
+    documentVersion: 1,
+    editorId: "editor-1",
+    languageId: "typescript",
+    outputLanguage: "en",
+  });
+  const initialBytes = Buffer.byteLength(buildPrompt(input), "utf8");
+  const maxTokens = initialBytes - 100;
+  const counted: string[] = [];
+  const result = await fitInput(
+    input,
+    async (prompt) => {
+      counted.push(prompt);
+      return maxTokens + 1;
+    },
+    maxTokens,
+    new AbortController().signal,
+  );
+
+  assert.ok(counted.length >= 1);
+  assert.ok(counted.every((prompt) => Buffer.byteLength(prompt, "utf8") > maxTokens));
+  assert.ok(Buffer.byteLength(result.prompt, "utf8") <= maxTokens);
+  assert.equal(result.input.selection, "selected");
 });
 
 test("reports an oversized prompt when the selected text itself cannot fit", async () => {

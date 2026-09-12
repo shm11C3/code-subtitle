@@ -84,6 +84,12 @@ RED: A new test required `zh`, `zh-*`, `ko`, and `ko-*` tags to share the Japane
 
 GREEN: `outputTarget` and `outputLimit` use one `ja|zh|ko` language pattern. The prompt's limit instruction follows automatically. This is a character-density extrapolation; native-reader validation for Chinese and Korean has not been performed.
 
+## Token-count bound cycle
+
+RED: Tests required `needsTokenCount` to return false when the prompt's UTF-8 byte length is at most the token budget, `fitInput` to never call the counter for a prompt that fits by that bound, and every later counter call during reduction to happen only while the byte bound is still exceeded. They failed because the helper did not exist and `fitInput` always counted at least once.
+
+GREEN: `needsTokenCount` compares `Buffer.byteLength` with `maxTokens`; `fitInput` checks it before the first and each subsequent count. The assumption that every byte-level BPE token covers at least one byte is stated in the code and in design §2. Provider-side counting behavior is unchanged when the bound is exceeded.
+
 ## Cache TDD cycles
 
 The cache tests use a controllable clock and fake prepared requests. They never persist data to disk or call a model.

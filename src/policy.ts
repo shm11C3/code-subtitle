@@ -260,6 +260,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+/**
+ * Decide whether a token count is needed at all. Every byte-level BPE token
+ * covers at least one UTF-8 byte, so the prompt's UTF-8 byte length is a safe
+ * upper bound on its token count: a prompt whose byte length already fits the
+ * budget cannot exceed it, and the (slow, provider-side) counter is skipped.
+ */
+export function needsTokenCount(prompt: string, maxTokens: number): boolean {
+  return Buffer.byteLength(prompt, "utf8") > maxTokens;
+}
+
 /** Reduce only adjacent context until the complete prompt fits the model budget. */
 export async function fitInput(
   input: SubtitleInput,
@@ -272,6 +282,9 @@ export async function fitInput(
 
   while (true) {
     throwIfAborted(signal);
+    if (!needsTokenCount(prompt, maxTokens)) {
+      return { input: current, prompt };
+    }
     const tokenCount = await countTokens(prompt);
     throwIfAborted(signal);
     if (tokenCount <= maxTokens) {
