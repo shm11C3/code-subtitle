@@ -22,7 +22,7 @@ The package uses a local placeholder publisher. It has not been published to a m
 
 ## Example flow
 
-1. Select the code or comment you want to understand.
+1. Select the code or comment you want to understand, or just leave the cursor on the line in question.
 2. Run `Code Subtitle: Show Subtitle`. Default shortcuts are `Alt+E` on Windows/Linux and `Ctrl+Alt+E` on macOS. Customize them in VS Code's Keyboard Shortcuts editor to suit your keyboard layout and existing bindings.
 3. A short subtitle streams in near the end of the selection.
 4. The subtitle disappears when you continue reading and change the selection. Pressing `Esc` while it is visible also dismisses it.
@@ -56,7 +56,7 @@ These are examples of displayed content. The extension does not insert into or r
 
 | Included                         | Policy                                                                                                            |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Selection → shortcut → subtitle  | Generate only after an explicit action; target one selection                                                      |
+| Selection → shortcut → subtitle  | Generate only after an explicit action; target one selection, or the cursor's line when nothing is selected       |
 | Short explanation or translation | Surface one grounded engineering insight for code; translate comments while preserving their meaning              |
 | One or two lines near the code   | The MVP baseline is one line rendered with a Decoration; decide whether to use two lines after display validation |
 | Streaming                        | Start displaying from the first content instead of waiting for the full response                                  |

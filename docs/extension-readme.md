@@ -1,6 +1,6 @@
 # Code Subtitle — Local Preview
 
-Select code or a short comment and run **Code Subtitle: Show Subtitle** to display a temporary, streamed explanation beside the selection.
+Select code or a short comment, or simply place the cursor on a line, and run **Code Subtitle: Show Subtitle** to display a temporary, streamed explanation beside it. With no selection, the whole current line is used.
 
 Subtitles are aimed at experienced engineers reading OSS or reviewing code. They connect a visible mechanism to one useful responsibility, invariant, failure boundary, or tradeoff. For example, a request-ID guard can explain why a late response cannot overwrite the current view. The model is instructed to avoid syntax narration and unsupported design intent; comments alone receive a faithful short translation.
 

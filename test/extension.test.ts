@@ -21,7 +21,8 @@ function event<T>() {
 }
 
 /** A VS Code boundary fixture; session, policy, cache, gateway, and view remain real. */
-function fixture(options: { semanticContext?: boolean; response?: string } = {}) {
+function fixture(options: { semanticContext?: boolean; response?: string; text?: string } = {}) {
+  const sourceText = options.text ?? "return value;";
   const directory = options.semanticContext
     ? mkdtempSync(join(tmpdir(), "subtitle-integration-"))
     : undefined;
@@ -59,8 +60,8 @@ function fixture(options: { semanticContext?: boolean; response?: string } = {})
     version: 1,
     languageId: "typescript",
     lineCount: 1,
-    getText: () => "return value;",
-    lineAt: () => ({ text: "return value;", range: { end: { line: 0, character: 13 } } }),
+    getText: () => sourceText,
+    lineAt: () => ({ text: sourceText, range: { end: { line: 0, character: sourceText.length } } }),
   };
   const editor = {
     document,
@@ -477,6 +478,50 @@ test("removing a workspace folder invalidates its completed subtitle", async () 
     assert.equal(app.text, "");
     await app.command("show");
     assert.equal(app.sends, 2);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("an empty selection targets the whole current line", async () => {
+  const app = fixture();
+  try {
+    app.editor.selections = [{ start: { line: 0, character: 5 }, end: { line: 0, character: 5 } }];
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    const prompt = app.prompts[0]!;
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1));
+    assert.equal(data.selection, "return value;");
+    assert.equal(app.text, "↳ Returns the current value.");
+    assert.deepEqual(app.notifications, []);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("a current-line subtitle stays while the cursor does not move and clears when it does", async () => {
+  const app = fixture();
+  try {
+    app.editor.selections = [{ start: { line: 0, character: 5 }, end: { line: 0, character: 5 } }];
+    await app.command("show");
+    app.selectionChanged.fire({ textEditor: app.editor });
+    assert.equal(app.text, "↳ Returns the current value.");
+    app.editor.selections = [{ start: { line: 0, character: 7 }, end: { line: 0, character: 7 } }];
+    app.selectionChanged.fire({ textEditor: app.editor });
+    assert.equal(app.text, "");
+  } finally {
+    app.dispose();
+  }
+});
+
+test("a whitespace-only current line reports the selection failure without a request", async () => {
+  const app = fixture({ text: "    " });
+  try {
+    app.editor.selections = [{ start: { line: 0, character: 2 }, end: { line: 0, character: 2 } }];
+    await app.command("show");
+    assert.equal(app.sends, 0);
+    assert.equal(app.text, "");
+    assert.equal(app.notifications.length, 1);
   } finally {
     app.dispose();
   }

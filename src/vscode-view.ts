@@ -167,7 +167,7 @@ function phaseColor(phase: SubtitlePhase): vscode.ThemeColor {
 function failureMessage(failure: FailureCode): string {
   switch (failure) {
     case "selection":
-      return "Select one non-empty range to show a subtitle.";
+      return "Select code, or put the cursor on a non-empty line, to show a subtitle.";
     case "inputTooLarge":
       return "The selection is too large. Narrow it and try again.";
     case "outputInvalid":

@@ -46,7 +46,7 @@ Select the most useful responsibility, invariant, failure boundary, or concrete 
 | Feature                     | MVP decision                                                                                                          |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | Launch                      | `codeSubtitle.show` command and shortcut; also executable from the Command Palette                                    |
-| Input                       | One non-whitespace-only selection in the regular text editor of desktop VS Code                                       |
+| Input                       | One non-whitespace-only selection, or the cursor's whole line when the selection is empty, in the desktop text editor |
 | Context                     | Selection, up to five adjacent lines each side, and optional bounded type/docs and one-hop same-workspace definitions |
 | Explanation and translation | Process according to the input in a single request; do not make an additional AI request solely for classification    |
 | Display                     | Aim for one or two lines near the code; use one line rendered with a Decoration as the initial baseline               |

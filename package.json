@@ -58,7 +58,7 @@
         "command": "codeSubtitle.show",
         "key": "alt+e",
         "mac": "ctrl+alt+e",
-        "when": "editorTextFocus && editorHasSelection && !editorHasMultipleSelections"
+        "when": "editorTextFocus && !editorHasMultipleSelections"
       },
       {
         "command": "codeSubtitle.dismiss",

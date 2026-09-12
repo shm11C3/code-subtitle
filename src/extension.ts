@@ -17,6 +17,8 @@ const AUTO_MODEL_KEY = "codeSubtitle.autoModelId";
 interface ActiveRequest {
   readonly input: SubtitleInput;
   readonly editor: vscode.TextEditor;
+  /** The editor selection when the command ran; it may be an empty cursor widened to a line. */
+  readonly selection: SelectionRange;
   readonly modelSetting: string;
   readonly outputLanguage: string;
   readonly semanticContext: boolean;
@@ -119,7 +121,7 @@ export function activate(context: vscode.ExtensionContext): void {
     if (
       editor.document.uri.toString() !== input.documentUri ||
       editor.document.version !== input.documentVersion ||
-      !sameEditorSelection(editor, input.range) ||
+      !sameEditorSelection(editor, active.selection) ||
       outputLanguage(editor.document) !== active.outputLanguage ||
       semanticEnabled() !== active.semanticContext ||
       modelSetting() !== active.modelSetting
@@ -163,9 +165,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const id = editorId(editor);
+    const selections = editor.selections.map(toSelectionRange);
     const snapshot: InputSnapshot = {
       text: editor.document.getText(),
-      selections: editor.selections.map(toSelectionRange),
+      selections: targetRanges(editor.document, selections),
       documentUri: editor.document.uri.toString(),
       documentVersion: editor.document.version,
       editorId: id,
@@ -188,6 +191,7 @@ export function activate(context: vscode.ExtensionContext): void {
     activeRequest = {
       input,
       editor,
+      selection: selections[0] ?? input.range,
       modelSetting: currentModelSetting,
       outputLanguage: snapshot.outputLanguage,
       semanticContext: semanticEnabled(),
@@ -244,7 +248,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (
         activeRequest &&
         event.textEditor === activeRequest.editor &&
-        !sameEditorSelection(event.textEditor, activeRequest.input.range)
+        !sameEditorSelection(event.textEditor, activeRequest.selection)
       ) {
         dismissActive();
       }
@@ -335,6 +339,25 @@ function showFirstUseDisclosure(context: vscode.ExtensionContext): void {
   void vscode.window.showInformationMessage(
     "Code Subtitle sends the selection, nearby lines, and optional language-service type/docs and same-workspace definition excerpts to VS Code's model. Disable semantic context in Code Subtitle settings to send only the selection and nearby lines.",
   );
+}
+
+/** An empty cursor targets its whole line; anything else is submitted as selected. */
+function targetRanges(document: vscode.TextDocument, selections: SelectionRange[]): SelectionRange[] {
+  const only = selections[0];
+  if (selections.length !== 1 || only === undefined || !isEmptyRange(only)) {
+    return selections;
+  }
+  const line = only.start.line;
+  return [
+    {
+      start: { line, character: 0 },
+      end: { line, character: document.lineAt(line).text.length },
+    },
+  ];
+}
+
+function isEmptyRange(range: SelectionRange): boolean {
+  return range.start.line === range.end.line && range.start.character === range.end.character;
 }
 
 function toSelectionRange(selection: vscode.Selection): SelectionRange {
