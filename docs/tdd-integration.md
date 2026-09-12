@@ -29,6 +29,8 @@ The following public extension flows were exercised with real session, policy, c
 
 A further regression test confirms that a dependency edit during an uncooperative provider request prevents model submission, even after the provider eventually resolves. It passed immediately using the existing cancellation path and is not claimed as a failing-first cycle.
 
+Revision: RED: a repeated command with semantic context enabled re-queried the providers before finding the cached result. GREEN: the cache lookup now precedes evidence collection and token fitting (session cycle 17); the repeated command makes no provider or model request.
+
 ## Inline failure guidance
 
 - RED: with the renderer now placing actionable failures beside the code, the extension tests required the unsupported-output and overlong-output cases to appear in the decoration slot without a notification, `Esc` (the `dismiss` command) and a document edit to clear that guidance even though the session holds no active request, and a missing active editor to keep the notification. `dismiss` was a no-op without an active session request.
@@ -43,6 +45,14 @@ A further regression test confirms that a dependency edit during an uncooperativ
 
 - RED: an extension test placed the anchor line outside the editor's visible ranges, required the subtitle to render, and required a visible-range change not to clear it. The subtitle was cancelled because `isCurrent` checked visibility and a visible-range handler dismissed it.
 - GREEN: the visible-range handler and the visibility check are removed. Selection change, edit, editor switch, `Esc`, and expiry remain the dismissal triggers.
+
+## Timing log
+
+RED: with `codeSubtitle.timingLog` enabled, the extension created no output channel and wrote nothing. GREEN: the extension injects a `SubtitleObserver` that lazily creates the **Code Subtitle Timing** channel and writes `request=<id> <event> +<ms>ms` lines; a companion test confirms that the default-off setting creates no channel. The line assertions exclude the fixture's source text, subtitle, and path.
+
+## Live evaluation harness
+
+`npm run eval:live` (`scripts/eval-live.cjs`, `test/eval/index.ts`, `test/eval/cases.ts`) has no automated test because it exists to make real model requests. Its checks are: it compiles with the extension build, it is excluded from the VSIX, and its no-model path prints a clear message and exits non-zero in a fresh profile. Results with a signed-in Copilot profile are recorded by hand in the results directory, not in this repository.
 
 ## Parallel iteration
 

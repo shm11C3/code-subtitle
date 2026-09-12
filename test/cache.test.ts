@@ -37,11 +37,13 @@ function createInput(overrides: Partial<SubtitleInput> = {}): SubtitleInput {
 }
 
 function createRequest(overrides: Partial<SubtitleInput> = {}, prompt = "prompt"): PreparedRequest {
+  const input = createInput(overrides);
   return {
-    input: createInput(overrides),
+    input,
     model: { vendor: "copilot", id: "test-model", version: "1" },
     prompt,
     alreadyAuthorized: true,
+    fit: async () => ({ input, prompt }),
     stream: async () =>
       (async function* (): AsyncIterable<string> {
         yield "unused";

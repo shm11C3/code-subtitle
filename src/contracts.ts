@@ -43,15 +43,28 @@ export interface ModelIdentity {
   id: string;
   version: string;
 }
+export interface FittedRequest {
+  /** The input actually submitted, including any bounded semantic evidence. */
+  input: SubtitleInput;
+  /** The complete prompt that fits the model budget. */
+  prompt: string;
+}
+
 export interface PreparedRequest {
+  /** The bounded, pre-enrichment input; the cache identity is derived from it. */
   input: SubtitleInput;
   model: ModelIdentity;
+  /** The prompt built from the pre-enrichment input; key material for the cache. */
   prompt: string;
   alreadyAuthorized: boolean;
+  /** Collect optional evidence and fit the prompt to the model budget; runs only on a cache miss. */
+  fit(signal: AbortSignal): Promise<FittedRequest>;
+  /** Start the model request with the fitted prompt; fits first when `fit` has not run. */
   stream(signal: AbortSignal): Promise<AsyncIterable<string>>;
 }
 
 export interface ModelGateway {
+  /** Resolve the model and access state only; no evidence collection or token counting. */
   prepare(input: SubtitleInput, signal: AbortSignal): Promise<PreparedRequest>;
 }
 
@@ -83,6 +96,29 @@ export interface Clock {
   now(): number;
   setTimeout(callback: () => void, delayMs: number): unknown;
   clearTimeout(handle: unknown): void;
+}
+
+export type SubtitleTimingEventName =
+  | "commandStart"
+  | "prepared"
+  | "cacheHit"
+  | "requestStart"
+  | "firstFragment"
+  | "streamEnd"
+  | "visible"
+  | "cleared"
+  | "cancelled";
+
+/**
+ * One content-free phase marker. `at` is a monotonic timestamp from the
+ * session clock; events never carry text, prompts, URIs, or file names.
+ */
+export type SubtitleTimingEvent =
+  | { requestId: number; at: number; name: SubtitleTimingEventName }
+  | { requestId: number; at: number; name: "failed"; code: FailureCode };
+
+export interface SubtitleObserver {
+  observe(event: SubtitleTimingEvent): void;
 }
 
 export interface SubtitleCache {

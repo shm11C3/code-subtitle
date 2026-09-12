@@ -76,11 +76,43 @@ The adapter now accepts `vendor:id`, keeps bare model IDs compatible as Copilot 
 
 On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, and all 114 tests passed. The real VS Code 1.135.0 extension-host smoke also passed on macOS arm64 using an isolated test-only provider contributed as `code-subtitle-test`; it selected `code-subtitle-test:test-model`, streamed a subtitle through the production gateway, and preserved document text, version, dirty state, and selection. The test provider is under `test/` and excluded from the VSIX. No installed external provider was available in this environment, so provider-specific authentication, quota, retention, and live output quality remain unverified.
 
+## Quality and speed revision
+
+Prompt policy version `5` selects calibration examples by `languageId` (Rust, Go, Python, and a TypeScript fallback) and applies the Japanese output limits to Chinese and Korean; the zh/ko limits are an unvalidated extrapolation. The session now checks the cache before semantic collection and token fitting, `fitInput` skips `countTokens` while the prompt's UTF-8 byte length fits the budget, an opt-in `codeSubtitle.timingLog` setting records content-free phase timings, and `npm run eval:live` provides a live evaluation harness for the output-quality cases.
+
+On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 99 tests, and `npm run package` passed; the packaged VSIX contains the 15 runtime files and excludes `test/**` and `.eval-host/**`. `npm run test:host` passed on VS Code 1.135.0 (macOS arm64) in built-in mode: renderer, activation and command, cross-file semantic, and semantic host smoke, with no model request. From the deep worktree used for this revision the default `.test-host` path exceeded the macOS Unix-socket limit (`listen EINVAL`), so the run used the new `CODE_SUBTITLE_HOST_ROOT` override with a short directory.
+
+`npm run eval:live` was run once in a fresh profile with no Copilot extension: it printed the "No Copilot model is available in the evaluation profile" guidance, wrote no results file, and exited with code 1. No live model request was made; the harness has not been run against a signed-in Copilot profile, so the recorded outputs, the effect of language-aware examples, the zh/ko limits, and any `modelOptions` experiment remain unevaluated.
+
+After merging `main` with the immediate UX improvements into this branch, the conflicting additions were combined (inline failure guidance keeps the request input while the observer reports the failure; the reading-time expiry and the `cleared` event share `showUntilExpiry`). On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 121 tests, and `npm run package` passed on the merged tree, and the extension-host smoke passed again from a short profile path.
+
+## Diff editor and PR review validation
+
+Issue #3 is implemented as a validation slice. The renderer uses the active modified-side `TextEditor` supplied by VS Code, so it follows the same zero-width end-of-line decoration path in regular editors and diff editors. No diff-specific request hint is added: the bounded prompt already describes only the selected code and nearby context, and no live evaluation evidence currently shows that a diff label improves the explanation.
+
+Deterministic review-URI coverage verifies that `git:`, `pr:`, and `vscode-vfs:` inputs return an empty semantic context without invoking any provider command. This keeps review views responsive and falls back to the existing selection-plus-adjacent-lines prompt. The existing short-term cache path remains available when `workspace.getWorkspaceFolder` is unavailable.
+
+The real extension-host smoke opens a synthetic `file:` diff and renders a subtitle on the modified line in both modes:
+
+| Matrix case                             | Automated result                             | Direct visual result                                           |
+| --------------------------------------- | -------------------------------------------- | -------------------------------------------------------------- |
+| Side-by-side, light theme               | Passed on macOS arm64 / VS Code 1.135.0      | Pending: requires an unlocked desktop                          |
+| Inline, light theme                     | Passed with `CODE_SUBTITLE_DIFF_MODE=inline` | Pending: requires an unlocked desktop                          |
+| Side-by-side, dark theme                | API/non-mutation path is covered             | Pending: run the visual check with a dark theme                |
+| Inline, dark theme                      | API/non-mutation path is covered             | Pending: run the visual check with a dark theme                |
+| Side-by-side, high contrast             | API/non-mutation path is covered             | Pending: run the visual check with a high-contrast theme       |
+| Inline, high contrast                   | API/non-mutation path is covered             | Pending: run the visual check with a high-contrast theme       |
+| `git:`, `pr:`, `vscode-vfs:` review URI | Provider-skip regression tests passed        | Requires the Git/GitHub PR provider to open a live review view |
+
+The host smoke also checks that the modified document text, version, dirty state, and selection are unchanged. It does not claim pixel-level readability, screen-reader support, GitHub Pull Requests integration, or Windows/Linux support; record those observations separately before describing diff editors as fully supported.
+
+The visual run was not completed in this session because the macOS desktop was locked and could not be unlocked by the available UI binding.
+
 ## Acceptance still requiring direct observation
 
 - Inline failure guidance readability and the `Shift+Alt+E` binding on Windows/Linux.
 
-- Subtitle readability on long lines, narrow splits, wrapped lines, themes, and zoom.
+- Subtitle readability on long lines, narrow splits, wrapped lines, diff editors, themes, and zoom.
 - Live-generation command interaction, Undo history, keyboard conflicts and dismissal precedence.
 - Screen-reader behavior, right-to-left language layout, Windows/Linux, and other excluded environments.
 - Actual external-provider availability, first-use consent, provider-specific data handling, translation accuracy, and preservation of negation/conditions.

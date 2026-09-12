@@ -6,6 +6,11 @@ const path = require("node:path");
 const root = path.resolve(__dirname, "..");
 const executable =
   process.env.VSCODE_EXECUTABLE || "/Applications/Visual Studio Code.app/Contents/MacOS/Code";
+// VS Code's IPC socket lives under the user data dir and macOS limits Unix socket
+// paths to 103 characters, so deep checkouts can relocate the profile directories.
+const hostRoot = process.env.CODE_SUBTITLE_HOST_ROOT
+  ? path.resolve(process.env.CODE_SUBTITLE_HOST_ROOT)
+  : root;
 
 const semanticHost = process.env.CODE_SUBTITLE_SEMANTIC_HOST || "builtin";
 if (semanticHost !== "builtin" && semanticHost !== "native") {
@@ -14,7 +19,8 @@ if (semanticHost !== "builtin" && semanticHost !== "native") {
   );
   process.exitCode = 2;
 } else {
-  const testHostRoot = path.join(root, ".test-host");
+  const testHostRoot =
+    process.env.CODE_SUBTITLE_TEST_HOST_ROOT || path.join(hostRoot, ".test-host");
   const workspaceRoot = path.join(testHostRoot, "workspace");
   const userDataDir = path.join(testHostRoot, `user-data-${semanticHost}`);
   const extensionsDir = path.join(testHostRoot, `extensions-${semanticHost}`);
@@ -28,6 +34,7 @@ if (semanticHost !== "builtin" && semanticHost !== "native") {
         "js/ts.experimental.useTsgo": semanticHost === "native",
         "codeSubtitle.model": "code-subtitle-test:test-model",
         "codeSubtitle.semanticContext": false,
+        "diffEditor.renderSideBySide": process.env.CODE_SUBTITLE_DIFF_MODE !== "inline",
       },
       null,
       2,

@@ -4,6 +4,9 @@ import { VscodeSubtitleView } from "../../src/vscode-view.js";
 import type { SubtitleInput } from "../../src/contracts.js";
 import { runSemanticSmoke } from "./semantic.js";
 
+const wait = (delayMs: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, delayMs));
+
 /** Exercises the production renderer without accessing any language model. */
 export async function run(): Promise<void> {
   const document = await vscode.workspace.openTextDocument({
@@ -85,6 +88,7 @@ export async function run(): Promise<void> {
   assert.equal(document.isDirty, before.dirty);
   console.log("Code Subtitle activation and command smoke: passed.");
   await runProviderSmoke();
+  await runDiffSmoke();
   await runSemanticSmoke();
 }
 
@@ -115,4 +119,81 @@ async function runProviderSmoke(): Promise<void> {
   assert.deepEqual(editor.selection, before.selection);
   await vscode.commands.executeCommand("codeSubtitle.dismiss");
   console.log("Code Subtitle non-Copilot provider smoke: passed (vendor:id, no source mutation).");
+}
+
+async function runDiffSmoke(): Promise<void> {
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+  assert.ok(workspaceFolder, "The diff smoke test has a workspace folder.");
+
+  const leftUri = vscode.Uri.joinPath(workspaceFolder.uri, "diff-before.ts");
+  const rightUri = vscode.Uri.joinPath(workspaceFolder.uri, "diff-after.ts");
+  await vscode.workspace.fs.writeFile(
+    leftUri,
+    new TextEncoder().encode("export function explain(value: string) {\n  return value;\n}\n"),
+  );
+  await vscode.workspace.fs.writeFile(
+    rightUri,
+    new TextEncoder().encode(
+      "export function explain(value: string) {\n  return value.trim();\n}\n",
+    ),
+  );
+
+  await vscode.commands.executeCommand(
+    "vscode.diff",
+    leftUri,
+    rightUri,
+    "Code Subtitle diff smoke",
+    { preview: false },
+  );
+  await wait(500);
+
+  const editor = vscode.window.activeTextEditor;
+  assert.ok(editor, "The diff editor exposes an active text editor.");
+  assert.equal(editor.document.uri.toString(), rightUri.toString());
+  const line = 1;
+  editor.selection = new vscode.Selection(line, 0, line, editor.document.lineAt(line).text.length);
+  const before = {
+    text: editor.document.getText(),
+    version: editor.document.version,
+    dirty: editor.document.isDirty,
+    selection: editor.selection,
+  };
+  const input: SubtitleInput = {
+    documentUri: editor.document.uri.toString(),
+    documentVersion: editor.document.version,
+    editorId: "diff-rendering-fixture",
+    range: {
+      start: { line, character: 0 },
+      end: { line, character: editor.document.lineAt(line).text.length },
+    },
+    anchorLine: line,
+    languageId: editor.document.languageId,
+    outputLanguage: "en",
+    selection: editor.document.lineAt(line).text,
+    before: "",
+    after: "",
+  };
+  const view = new VscodeSubtitleView(() => editor);
+  view.show(
+    input,
+    "The change trims surrounding whitespace before returning the value.",
+    "visible",
+  );
+
+  assert.equal(editor.document.getText(), before.text);
+  assert.equal(editor.document.version, before.version);
+  assert.equal(editor.document.isDirty, before.dirty);
+  assert.deepEqual(editor.selection, before.selection);
+
+  if (process.env.CODE_SUBTITLE_VISUAL_CHECK === "1") {
+    await vscode.window.showInformationMessage(
+      `Diff editor (${process.env.CODE_SUBTITLE_DIFF_MODE === "inline" ? "inline" : "side-by-side"}): inspect the subtitle on the changed line in light theme.`,
+      "Next",
+    );
+  }
+  view.clear();
+  view.dispose();
+  console.log(
+    `Code Subtitle diff smoke: passed (${process.env.CODE_SUBTITLE_DIFF_MODE === "inline" ? "inline" : "side-by-side"}).`,
+  );
 }

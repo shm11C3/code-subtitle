@@ -351,6 +351,115 @@ test("provider failure becomes a typed safe subtitle error", async () => {
   );
 });
 
+test("forwards configured modelOptions to sendRequest and omits them by default", async () => {
+  const requestOptions: vscode.LanguageModelChatRequestOptions[] = [];
+  const createRecordingModel = (): vscode.LanguageModelChat =>
+    ({
+      id: "options-model",
+      name: "options-model",
+      vendor: "copilot",
+      family: "options-model",
+      version: "1",
+      maxInputTokens: 1000,
+      countTokens: async () => 12,
+      sendRequest: async (
+        _messages: vscode.LanguageModelChatMessage[],
+        options?: vscode.LanguageModelChatRequestOptions,
+      ) => {
+        requestOptions.push(options ?? {});
+        return {
+          text: (async function* () {
+            yield "ok";
+          })(),
+        };
+      },
+    }) as unknown as vscode.LanguageModelChat;
+
+  const plain = new VscodeModelGateway(
+    createOptions(createRecordingModel(), [], undefined, "options-model"),
+  );
+  await (
+    await plain.prepare(createInput(), new AbortController().signal)
+  ).stream(new AbortController().signal);
+
+  const tuned = new VscodeModelGateway({
+    ...createOptions(createRecordingModel(), [], undefined, "options-model"),
+    modelOptions: { temperature: 0.2, maxTokens: 120 },
+  });
+  await (
+    await tuned.prepare(createInput(), new AbortController().signal)
+  ).stream(new AbortController().signal);
+
+  assert.equal(requestOptions.length, 2);
+  assert.equal("modelOptions" in requestOptions[0]!, false);
+  assert.equal(typeof requestOptions[0]!.justification, "string");
+  assert.deepEqual(requestOptions[1]!.modelOptions, { temperature: 0.2, maxTokens: 120 });
+  assert.equal(requestOptions[1]!.justification, requestOptions[0]!.justification);
+});
+
+test("prepare resolves the model without counting tokens; fit counts once and stream reuses it", async () => {
+  const tokenSources: FakeTokenSource[] = [];
+  let countCalls = 0;
+  const sentPrompts: string[] = [];
+  const model = {
+    id: "lazy-model",
+    name: "lazy-model",
+    vendor: "copilot",
+    family: "lazy-model",
+    version: "1",
+    maxInputTokens: 1000,
+    countTokens: async (
+      _text: string | vscode.LanguageModelChatMessage,
+      _token?: vscode.CancellationToken,
+    ) => {
+      countCalls += 1;
+      return 12;
+    },
+    sendRequest: async (
+      messages: { content: string }[],
+      _options?: vscode.LanguageModelChatRequestOptions,
+      _token?: vscode.CancellationToken,
+    ) => {
+      sentPrompts.push(messages[0]!.content);
+      return {
+        text: (async function* () {
+          yield "ok";
+        })(),
+      };
+    },
+  } as unknown as vscode.LanguageModelChat;
+  let fitCalls = 0;
+  const base = createOptions(model, tokenSources, undefined, "lazy-model");
+  const gateway = new VscodeModelGateway({
+    ...base,
+    fitInput: async (input, countTokens) => {
+      fitCalls += 1;
+      await countTokens("fitted prompt");
+      return { input, prompt: "fitted prompt" };
+    },
+  });
+  const signal = new AbortController().signal;
+
+  const prepared = await gateway.prepare(createInput(), signal);
+  assert.equal(fitCalls, 0);
+  assert.equal(countCalls, 0);
+  assert.equal(prepared.model.id, "lazy-model");
+  assert.ok(prepared.prompt.includes("await update();"));
+
+  const fitted = await prepared.fit(signal);
+  assert.equal(fitCalls, 1);
+  assert.equal(countCalls, 1);
+  assert.equal(fitted.prompt, "fitted prompt");
+
+  const stream = await prepared.stream(signal);
+  for await (const _chunk of stream) {
+    // Drain the stream so the request completes.
+  }
+  assert.equal(fitCalls, 1);
+  assert.equal(countCalls, 1);
+  assert.deepEqual(sentPrompts, ["fitted prompt"]);
+});
+
 test("aborting token fitting cancels and disposes its VS Code source immediately", async () => {
   const tokenSources: FakeTokenSource[] = [];
   let releaseCount!: () => void;
@@ -387,7 +496,9 @@ test("aborting token fitting cancels and disposes its VS Code source immediately
   const base = createOptions(model, tokenSources, undefined, "slow-model");
   const gateway = new VscodeModelGateway(base);
   const controller = new AbortController();
-  const pending = gateway.prepare(createInput(), controller.signal);
+  const prepared = await gateway.prepare(createInput(), controller.signal);
+  assert.equal(tokenSources.length, 0);
+  const pending = prepared.fit(controller.signal);
 
   for (let attempt = 0; attempt < 20 && tokenSources.length === 0; attempt += 1) {
     await Promise.resolve();

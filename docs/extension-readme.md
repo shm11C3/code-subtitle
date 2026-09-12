@@ -37,11 +37,12 @@ Output language follows VS Code's display language. Override it with `codeSubtit
 {
   "codeSubtitle.outputLanguage": "auto",
   "codeSubtitle.model": "auto",
-  "codeSubtitle.semanticContext": true
+  "codeSubtitle.semanticContext": true,
+  "codeSubtitle.timingLog": false
 }
 ```
 
-Set `codeSubtitle.outputLanguage` to a language tag such as `ja` or `en`. Set `codeSubtitle.semanticContext` to `false` when requests should contain only the selection and adjacent lines.
+Set `codeSubtitle.outputLanguage` to a language tag such as `ja` or `en`. Set `codeSubtitle.semanticContext` to `false` when requests should contain only the selection and adjacent lines. Set `codeSubtitle.timingLog` to `true` to record content-free phase timings in the **Code Subtitle Timing** output channel; it records only request ids, phase names, and milliseconds, never code, prompts, subtitles, or file names.
 
 ## Limitations
 

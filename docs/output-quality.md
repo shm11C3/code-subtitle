@@ -12,13 +12,21 @@ Run each case with the stated output language and record `pass` or `reject` with
 
 ## Reproducible live check
 
-When running the set in the product, put each case in one isolated file and select the whole snippet shown here. Keep the chosen model fixed, request the stated output language, and record the model identifier, date, output language, returned subtitle, and `pass` or `reject` reason. If a case is repeated, use **Clear Cache** between repetitions so cached text is not mistaken for a fresh generation result.
+Run the set with the live evaluation harness:
+
+```sh
+npm run eval:live
+```
+
+It opens a desktop VS Code window with the persistent `.eval-host` profile, writes each case below to its own file in `.eval-host/workspace`, selects the whole snippet, and runs the production input, semantic-context, fitting, and streaming pipeline against a real Copilot model with no cache. Install GitHub Copilot Chat into that profile and sign in once; the run exits with a clear message when no model is available. Set `CODE_SUBTITLE_EVAL_MODEL=<id>` to fix the model, `CODE_SUBTITLE_EVAL_SEMANTIC=0` to disable semantic context, and `CODE_SUBTITLE_EVAL_MODEL_OPTIONS='{"temperature":0.2}'` to try provider options that production never sends. See [Development](development.md) for the profile layout.
+
+The harness prints a Markdown table and writes it to `.eval-host/results/<timestamp>.md` with the model vendor/id/version, output language, returned subtitle, grapheme count, validator result, milliseconds to the first non-empty fragment and to completion, the number of semantic entries, and an empty `verdict` column. A person fills in `pass` or `reject` with one short reason using the criteria below; the harness records outputs and never judges meaning. When repeating a case in the product instead, use **Clear Cache** between repetitions so cached text is not mistaken for a fresh generation result.
 
 ## Acceptance criteria
 
 Accept a subtitle only when all of these hold:
 
-- It is one concise plain-text sentence in the requested language and fits the current output limit: 400 grapheme clusters for non-Japanese output or 200 for Japanese output. The prompt still targets 200 and 100 respectively.
+- It is one concise plain-text sentence in the requested language and fits the current output limit: 200 grapheme clusters for Japanese, Chinese, and Korean output or 400 for other languages. The prompt still targets 100 and 200 respectively. The Chinese and Korean limits are unvalidated by native readers (principle 5); check them with the live harness before claiming quality for those languages.
 - For code selections, it names an observable responsibility, invariant, tradeoff, boundary, or failure behavior that helps an engineer read the next line; a faithful comment translation or bounded unknown-context description may pass without a deeper insight.
 - It preserves identifiers when they carry meaning, along with negation, conditions, counts, and caveats.
 - It stays within the selected code and bounded context; it does not assert the author's intent, diagnose a bug, or promise a project-wide property without evidence.
@@ -28,6 +36,8 @@ Accept a subtitle only when all of these hold:
 Reject a subtitle that merely restates method calls or syntax, changes an `OR` condition or failure path, invents a race or security guarantee, calls a locally ambiguous snippet buggy, adds speculative or forced review advice, includes more than one review check, or uses block formatting, links, lists, or alternative answers. Inline backticks and emphasis are accepted as literal text, although plain prose remains the prompt target.
 
 ## Manual cases
+
+These cases are mirrored in `test/eval/cases.ts` for the harness; this document stays the human-readable source, and the prompt's calibration examples must never reuse these snippets.
 
 ### 1. Cancellation owns the current request
 
@@ -170,4 +180,4 @@ For semantic-context evaluation, also compare the following pair with the same m
 - With semantic context enabled and the definition returned, expect the subtitle to identify that comparison ignores leading/trailing whitespace and case. Reject claims about Unicode normalization, locale-aware comparison, security, or author intent that the definition does not establish.
 - Change the definition to return only `value.trim()` and invoke again. The result must no longer attribute case folding to the visible implementation. Provider tests can establish the changed evidence and cache behavior; only an observed model run can establish the wording.
 
-This set is intentionally small and local. It samples six engineering behaviors plus one comment translation case; passing it does not establish general model quality, correctness across languages, or usefulness across a repository. Live provider output remains unevaluated until someone runs these cases in the product. No live model request is part of this document, and unit tests for prompt construction or output validation must not be reported as evidence that the generated subtitles are good.
+This set is intentionally small and local. It samples six engineering behaviors plus one comment translation case; passing it does not establish general model quality, correctness across languages, or usefulness across a repository. Live provider output remains unevaluated until someone runs these cases with the harness or in the product and records verdicts. No live model request is part of this document or of the automated tests, and unit tests for prompt construction or output validation must not be reported as evidence that the generated subtitles are good.
