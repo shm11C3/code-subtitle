@@ -18,14 +18,14 @@ When running the set in the product, put each case in one isolated file and sele
 
 Accept a subtitle only when all of these hold:
 
-- It is one concise plain-text sentence in the requested language and fits the current output limit: 200 grapheme clusters for non-Japanese output or 100 for Japanese output.
+- It is one concise plain-text sentence in the requested language and fits the current output limit: 400 grapheme clusters for non-Japanese output or 200 for Japanese output. The prompt still targets 200 and 100 respectively.
 - For code selections, it names an observable responsibility, invariant, tradeoff, boundary, or failure behavior that helps an engineer read the next line; a faithful comment translation or bounded unknown-context description may pass without a deeper insight.
 - It preserves identifiers when they carry meaning, along with negation, conditions, counts, and caveats.
 - It stays within the selected code and bounded context; it does not assert the author's intent, diagnose a bug, or promise a project-wide property without evidence.
 - If it includes a review check, it contains at most one concise check tied to material behavior visible in the bounded input; it does not force advice when no check is established.
 - For a comment-only selection, it translates the comment faithfully and does not add a new rationale or code explanation.
 
-Reject a subtitle that merely restates method calls or syntax, changes an `OR` condition or failure path, invents a race or security guarantee, calls a locally ambiguous snippet buggy, adds speculative or forced review advice, includes more than one review check, or uses Markdown, links, lists, or alternative answers.
+Reject a subtitle that merely restates method calls or syntax, changes an `OR` condition or failure path, invents a race or security guarantee, calls a locally ambiguous snippet buggy, adds speculative or forced review advice, includes more than one review check, or uses block formatting, links, lists, or alternative answers. Inline backticks and emphasis are accepted as literal text, although plain prose remains the prompt target.
 
 ## Manual cases
 

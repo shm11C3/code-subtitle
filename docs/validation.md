@@ -12,7 +12,7 @@ Status: local preview implemented on 2026-09-12. Deterministic and extension-hos
 ## Observed results
 
 - `npm run check`: passed.
-- `npm test`: 78 tests passed across policy, cache, session, model adapter, semantic provider, and event integration.
+- `npm test`: 84 tests passed across policy, cache, session, model adapter, semantic provider, and event integration.
 - `npm run package`: produced the local `code-subtitle-0.0.1.vsix` preview.
 - VSIX inspection: runtime JavaScript, manifest, and preview README included; no test fixtures, development dependencies, source maps, or local test profile.
 - Real extension-host activation: all three commands registered; dismiss and clear-cache executed without document mutation.
@@ -42,6 +42,16 @@ On 2026-09-12, `npm run check`, all 78 tests, `npm run lint`, and `npm run fmt:c
 See [Semantic host validation](semantic-host-validation.md) for reproducible commands. No live model request was made; these results establish context retrieval and deterministic behavior, not improved generated explanations or end-to-end latency.
 
 The semantic-context VSIX was packaged and reinstalled into the normal VS Code profile. Installed `extension.js`, `policy.js`, and `vscode-semantic.js` matched the build byte-for-byte, and the installed setting defaults to enabled. Reload an existing VS Code window to activate this build.
+
+## Relaxed output acceptance revision
+
+Prompt policy version `4` retains concise targets of 100 Japanese grapheme clusters and 200 for other languages, while allowing display up to 200 and 400 respectively. Inline backticks and emphasis are accepted as literal text. Empty output, control characters, fenced code, headings, lists, block quotes, and links remain invalid. Output exceeding the hard limit has a separate message from unsupported output; responses are never truncated or automatically retried.
+
+Synthetic examples reproduced rejection of a 104-grapheme Japanese explanation and a short explanation containing an inline identifier. Boundary tests cover inclusive hard limits and the next grapheme; session coverage verifies longer Japanese output streams and is cached intact. These checks do not establish the cause or frequency of failures in live model responses.
+
+After recovering local disk space, all 84 tests, TypeScript checking, lint, and formatting passed on 2026-09-12.
+
+The revised VSIX was packaged and reinstalled in the normal VS Code profile. Installed `policy.js`, `session.js`, `vscode-view.js`, and `extension.js` matched the build byte-for-byte. Reload an existing VS Code window to activate the revision.
 
 ## Acceptance still requiring direct observation
 

@@ -66,6 +66,7 @@ export type FailureCode =
   | "selection"
   | "inputTooLarge"
   | "outputInvalid"
+  | "outputTooLong"
   | "modelUnavailable"
   | "accessDenied"
   | "blocked"

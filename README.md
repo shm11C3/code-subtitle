@@ -64,7 +64,7 @@ These are examples of displayed content. The extension does not insert into or r
 | Cancellation and reuse           | Cancel old requests and use a short-lived, workspace-scoped memory cache                                          |
 | Minimal configuration            | Use automatic output language and automatic model selection by default                                            |
 
-For Japanese, the default target is one sentence and at most 100 characters. Accuracy of negation, conditions, and caveats takes priority over brevity; if the result does not fit, ask the user to make the selection smaller.
+For Japanese, the default target is one sentence within 100 grapheme clusters, with a display allowance up to 200. Other languages target 200 grapheme clusters with an allowance up to 400. Accuracy of negation, conditions, and caveats takes priority over brevity; if the result does not fit, ask the user to make the selection smaller.
 
 ## Non-goals
 

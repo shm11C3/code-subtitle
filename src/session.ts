@@ -221,12 +221,12 @@ export class SubtitleSession {
 
       active.rawText += chunk;
       if (active.rawText.length > MAX_RAW_STREAM_UNITS) {
-        this.fail(active, "outputInvalid");
+        this.fail(active, "outputTooLong");
         return CANCELLED;
       }
       const partial = normalizeOutput(active.rawText);
       if (graphemeLength(partial) > outputLimit(active.input.outputLanguage)) {
-        this.fail(active, "outputInvalid");
+        this.fail(active, "outputTooLong");
         return CANCELLED;
       }
       if (partial.length === 0) {

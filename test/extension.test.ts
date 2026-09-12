@@ -21,7 +21,7 @@ function event<T>() {
 }
 
 /** A VS Code boundary fixture; session, policy, cache, gateway, and view remain real. */
-function fixture(options: { semanticContext?: boolean } = {}) {
+function fixture(options: { semanticContext?: boolean; response?: string } = {}) {
   const directory = options.semanticContext
     ? mkdtempSync(join(tmpdir(), "subtitle-integration-"))
     : undefined;
@@ -88,7 +88,7 @@ function fixture(options: { semanticContext?: boolean } = {}) {
       return {
         text: (async function* () {
           if (holdStream) await holdStream();
-          yield "Returns the current value.";
+          yield options.response ?? "Returns the current value.";
         })(),
       };
     },
@@ -229,6 +229,30 @@ function fixture(options: { semanticContext?: boolean } = {}) {
     },
   };
 }
+
+test("unsupported output offers a retry without blaming the selection size", async () => {
+  const app = fixture({ response: "# Unexpected heading" });
+  try {
+    await app.command("show");
+    assert.deepEqual(app.notifications, [
+      "The model returned an empty or unsupported subtitle. Try again.",
+    ]);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("oversized output explains the display limit", async () => {
+  const app = fixture({ response: "a".repeat(401) });
+  try {
+    await app.command("show");
+    assert.deepEqual(app.notifications, [
+      "The generated subtitle is too long. Try a smaller selection.",
+    ]);
+  } finally {
+    app.dispose();
+  }
+});
 
 test("an explicit command includes provider evidence in the model request", async () => {
   const app = fixture({ semanticContext: true });

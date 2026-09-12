@@ -14,9 +14,9 @@ GREEN: `normalizeOutput` now collapses display whitespace and trims the result w
 
 ## Cycle 2: language-specific output limits
 
-RED: The next test required Japanese language tags to use a 100-grapheme limit and other language tags to use a 200-grapheme limit.
+RED: The next test required Japanese language tags to target 100 graphemes and other language tags to target 200 graphemes, while allowing a 200-grapheme Japanese hard limit and a 400-grapheme hard limit for other languages.
 
-GREEN: `outputLimit` recognizes `ja` and `ja-*` tags and uses the non-Japanese limit for other tags, including `auto`.
+GREEN: `outputTarget` recognizes `ja` and `ja-*` tags and retains the shorter 100/200 prompt targets; `outputLimit` applies the inclusive 200/400 hard caps for all other tags, including `auto`.
 
 ## Cycle 3: grapheme counting
 
@@ -26,9 +26,9 @@ GREEN: `graphemeLength` uses the host's `Intl.Segmenter` with grapheme granulari
 
 ## Cycle 4: completed-output validation
 
-RED: Tests required short plain text to pass and empty, unsafe-control, over-limit, code-fence, Markdown-list, heading, blockquote, emphasis, inline-code, and link output to fail. The validator must reject over-limit text instead of truncating it.
+RED: Tests required short plain text to pass and empty, unsafe-control, over-limit, code-fence, Markdown-list, heading, blockquote, and link output to fail. Inline backticks and emphasis had to remain valid literal text, and over-limit output had to be rejected instead of truncated.
 
-GREEN: `validateOutput` checks the raw text for unsafe controls and unsupported Markdown forms, then applies normalized whitespace and the language-specific grapheme limit. Identifiers containing underscores remain valid plain text.
+GREEN: `validateOutput` checks the raw text for unsafe controls and unsupported block or link forms, then applies normalized whitespace and the language-specific hard grapheme limit. Inline backticks and emphasis markers remain unchanged as literal text, and identifiers containing underscores remain valid plain text.
 
 ## Cycle 5: construct one bounded selection input
 
@@ -71,6 +71,12 @@ GREEN: The prompt now connects one visible mechanism to a responsibility, invari
 RED: A separate test failed because the prompt did not communicate the validator's display limit for Japanese and other language tags.
 
 GREEN: Prompt construction now uses `outputLimit` to state the same limit that output validation enforces, while retaining decisive conditions and caveats. This does not guarantee that a model obeys the limit or produces a useful insight. Live semantic acceptance is tracked separately in [Output quality](output-quality.md).
+
+## Relaxed output policy cycles
+
+RED: Boundary tests required output at exactly 200 Japanese graphemes and 400 non-Japanese graphemes to pass, the next grapheme to fail, and a 104-grapheme Japanese prose subtitle to pass. A short subtitle containing `` `requestId` `` or `**cached**` also had to pass without marker stripping, while fenced code, lists, headings, block quotes, links, empty text, and control characters remained invalid.
+
+GREEN: `validateOutput` enforces the inclusive hard caps with grapheme counting and allows inline backticks and emphasis as literal text. `buildPrompt` asks for about `outputTarget` graphemes, communicates the `outputLimit` hard cap, and keeps the one-sentence requirement. `POLICY_VERSION` is `4` so cached responses use the revised output contract.
 
 ## Cache TDD cycles
 

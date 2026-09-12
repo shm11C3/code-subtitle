@@ -8,6 +8,7 @@ import {
   graphemeLength,
   normalizeOutput,
   outputLimit,
+  outputTarget,
   validateOutput,
 } from "../src/policy.js";
 
@@ -15,9 +16,11 @@ test("normalizes output whitespace without changing its words", () => {
   assert.equal(normalizeOutput("  Reuse\r\n\tthe cached value.  "), "Reuse the cached value.");
 });
 
-test("uses the Japanese output limit only for Japanese language tags", () => {
-  assert.equal(outputLimit("ja-JP"), 100);
-  assert.equal(outputLimit("en-US"), 200);
+test("uses separate language-specific output targets and hard limits", () => {
+  assert.equal(outputTarget("ja-JP"), 100);
+  assert.equal(outputTarget("en-US"), 200);
+  assert.equal(outputLimit("ja-JP"), 200);
+  assert.equal(outputLimit("en-US"), 400);
 });
 
 test("counts grapheme clusters rather than UTF-16 code units", () => {
@@ -29,24 +32,42 @@ test("accepts a short plain subtitle", () => {
   assert.equal(validateOutput("Keep snake_case identifiers unchanged.", "en"), true);
 });
 
-test("rejects code fences and Markdown lists, headings, links, and formatting", () => {
+test("rejects code fences and Markdown lists, headings, links, and block quotes", () => {
   for (const text of [
     "```code```",
     "- one item",
     "# Heading",
     "[docs](https://example.com)",
     "> quoted text",
-    "*emphasis*",
-    "`inline code`",
   ]) {
     assert.equal(validateOutput(text, "en"), false, text);
   }
 });
 
+test("allows inline backticks and emphasis as literal subtitle text", () => {
+  assert.equal(validateOutput("`requestId` gates the stale response.", "en"), true);
+  assert.equal(validateOutput("The **cached** value remains reusable.", "en"), true);
+});
+
 test("rejects empty, unsafe, and over-limit output instead of truncating it", () => {
   assert.equal(validateOutput("   ", "en"), false);
   assert.equal(validateOutput("safe\u0001 text", "en"), false);
-  assert.equal(validateOutput("a".repeat(201), "en"), false);
+  assert.equal(validateOutput("a".repeat(401), "en"), false);
+});
+
+test("accepts output at each hard boundary and rejects the next grapheme", () => {
+  assert.equal(validateOutput("あ".repeat(200), "ja"), true);
+  assert.equal(validateOutput("あ".repeat(201), "ja"), false);
+  assert.equal(validateOutput("a".repeat(400), "en"), true);
+  assert.equal(validateOutput("a".repeat(401), "en"), false);
+});
+
+test("accepts a 104-grapheme Japanese prose subtitle", () => {
+  const prose =
+    "選択されたコードは現在の状態を確認し、古いリクエストの結果が画面へ反映されないように更新順序を管理します。必要な情報が不足している場合にも周辺の文脈を確認し、呼び出し側の契約とデータの流れを確認してください。";
+
+  assert.equal(graphemeLength(prose), 104);
+  assert.equal(validateOutput(prose, "ja-JP"), true);
 });
 
 test("creates one input with the selected text, anchor, and adjacent line context", () => {
@@ -380,9 +401,14 @@ test("includes the validator's language-specific display limit in the prompt", (
 
     const prompt = buildPrompt(input);
     assert.ok(
-      prompt.includes(`at most ${outputLimit(outputLanguage)} visible characters`),
-      `The prompt must communicate the display limit for ${outputLanguage}.`,
+      prompt.includes(`Aim for about ${outputTarget(outputLanguage)} visible characters`),
+      `The prompt must communicate the target for ${outputLanguage}.`,
     );
+    assert.ok(
+      prompt.includes(`hard cap of at most ${outputLimit(outputLanguage)} visible characters`),
+      `The prompt must communicate the hard limit for ${outputLanguage}.`,
+    );
+    assert.match(prompt, /Keep one concise sentence/iu);
   }
 });
 

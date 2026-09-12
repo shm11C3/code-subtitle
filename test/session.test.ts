@@ -401,13 +401,45 @@ test("completed results are reused without generation and expire from the view",
   assert.equal(view.clearCount, clearCountAfterRender + 1);
 });
 
-test("invalid streamed output is cleared and never cached", async () => {
+test("Japanese output above the concise target streams and is cached without truncation", async () => {
+  const text =
+    "要求ごとの識別子で応答を照合することで、先に開始した処理の結果が後から到着しても、現在表示している新しい結果を上書きしないようにしているため、キャンセルが通信先まで伝わらない場合にも表示の整合性を維持できます。";
+  const length = Array.from(
+    new Intl.Segmenter("ja", { granularity: "grapheme" }).segment(text),
+  ).length;
+  assert.ok(length > 100 && length <= 200);
   const view = new RecordingView();
   const cache = new MemoryCache();
   const session = new SubtitleSession({
     gateway: createGateway(async () =>
       (async function* (): AsyncIterable<string> {
-        yield "a".repeat(201);
+        yield text.slice(0, 101);
+        yield text.slice(101);
+      })(),
+    ),
+    view,
+    cache,
+    clock: new ManualClock(),
+    isCurrent: () => true,
+  });
+
+  await session.show(createInput({ outputLanguage: "ja" }));
+  assert.deepEqual(view.failures, []);
+  assert.ok(
+    view.shows.some((show) => show.phase === "streaming" && show.text === text.slice(0, 101)),
+  );
+  assert.equal(view.shows.at(-1)?.text, text);
+  assert.equal(view.shows.at(-1)?.phase, "visible");
+  assert.deepEqual([...cache.entries.values()], [text]);
+});
+
+test("output beyond the display limit is reported as too long and never cached", async () => {
+  const view = new RecordingView();
+  const cache = new MemoryCache();
+  const session = new SubtitleSession({
+    gateway: createGateway(async () =>
+      (async function* (): AsyncIterable<string> {
+        yield "a".repeat(401);
       })(),
     ),
     view,
@@ -417,7 +449,7 @@ test("invalid streamed output is cleared and never cached", async () => {
   });
 
   await session.show(createInput());
-  assert.deepEqual(view.failures, ["outputInvalid"]);
+  assert.deepEqual(view.failures, ["outputTooLong"]);
   assert.equal(cache.puts, 0);
   assert.equal(
     view.shows.some((show) => show.phase === "visible"),

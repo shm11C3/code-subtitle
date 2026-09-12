@@ -117,7 +117,9 @@ function failureMessage(failure: FailureCode): string {
     case "inputTooLarge":
       return "The selection is too large. Narrow it and try again.";
     case "outputInvalid":
-      return "The subtitle could not be shown. Try a smaller selection.";
+      return "The model returned an empty or unsupported subtitle. Try again.";
+    case "outputTooLong":
+      return "The generated subtitle is too long. Try a smaller selection.";
     case "modelUnavailable":
       return "No Copilot model is available for Code Subtitle.";
     case "accessDenied":
