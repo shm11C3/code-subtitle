@@ -84,5 +84,35 @@ export async function run(): Promise<void> {
   assert.equal(document.version, before.version);
   assert.equal(document.isDirty, before.dirty);
   console.log("Code Subtitle activation and command smoke: passed.");
+  await runProviderSmoke();
   await runSemanticSmoke();
+}
+
+async function runProviderSmoke(): Promise<void> {
+  const models = await vscode.lm.selectChatModels({ vendor: "code-subtitle-test" });
+  assert.equal(models.length, 1, "The isolated host loaded the non-Copilot test provider.");
+  assert.equal(models[0]?.vendor, "code-subtitle-test");
+  assert.equal(models[0]?.id, "test-model");
+
+  const document = await vscode.workspace.openTextDocument({
+    language: "typescript",
+    content: "return value;\n",
+  });
+  const editor = await vscode.window.showTextDocument(document);
+  editor.selection = new vscode.Selection(0, 0, 0, document.lineAt(0).text.length);
+  const before = {
+    text: document.getText(),
+    version: document.version,
+    dirty: document.isDirty,
+    selection: editor.selection,
+  };
+
+  await vscode.commands.executeCommand("codeSubtitle.show");
+
+  assert.equal(document.getText(), before.text);
+  assert.equal(document.version, before.version);
+  assert.equal(document.isDirty, before.dirty);
+  assert.deepEqual(editor.selection, before.selection);
+  await vscode.commands.executeCommand("codeSubtitle.dismiss");
+  console.log("Code Subtitle non-Copilot provider smoke: passed (vendor:id, no source mutation).");
 }

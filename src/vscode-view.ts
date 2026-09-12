@@ -173,7 +173,7 @@ function failureMessage(failure: FailureCode): string {
     case "outputTooLong":
       return "The generated subtitle is too long. Try a smaller selection.";
     case "modelUnavailable":
-      return "No Copilot model is available for Code Subtitle.";
+      return "No language model is available for Code Subtitle.";
     case "accessDenied":
       return "Model access was not granted. Try again after access is allowed.";
     case "blocked":

@@ -23,10 +23,23 @@ if (semanticHost !== "builtin" && semanticHost !== "native") {
   fs.mkdirSync(userSettingsDir, { recursive: true });
   fs.writeFileSync(
     path.join(userSettingsDir, "settings.json"),
-    `${JSON.stringify({ "js/ts.experimental.useTsgo": semanticHost === "native" }, null, 2)}\n`,
+    `${JSON.stringify(
+      {
+        "js/ts.experimental.useTsgo": semanticHost === "native",
+        "codeSubtitle.model": "code-subtitle-test:test-model",
+        "codeSubtitle.semanticContext": false,
+      },
+      null,
+      2,
+    )}\n`,
     "utf8",
   );
   fs.mkdirSync(extensionsDir, { recursive: true });
+  fs.cpSync(
+    path.join(root, "test", "host", "provider"),
+    path.join(extensionsDir, "code-subtitle-tests.code-subtitle-test-provider-0.0.0"),
+    { recursive: true, force: true },
+  );
 
   if (semanticHost === "native") {
     const nativeExtension = findNativeExtension();

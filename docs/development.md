@@ -11,7 +11,7 @@ npm run package
 
 The package command creates `code-subtitle-0.0.1.vsix`. Its publisher ID is a local placeholder. Packaging does not publish it to a marketplace. An OSS license and public publisher identity must be chosen before a public release; no license grant is implied by the current preview.
 
-Open this repository in VS Code and launch **Run Code Subtitle** from Run and Debug to try the extension in a development host. Real generation requires an available Copilot model and VS Code's model consent. The extension makes no generation request until **Show Subtitle** is invoked with a valid selection.
+Open this repository in VS Code and launch **Run Code Subtitle** from Run and Debug to try the extension in a development host. Real generation requires an available language model from VS Code and whatever consent or configuration its provider requires. The extension makes no generation request until **Show Subtitle** is invoked with a valid selection.
 
 ## Deterministic tests
 
@@ -26,6 +26,8 @@ npm run test:host
 The runner defaults to the standard macOS VS Code executable. Set `VSCODE_EXECUTABLE` to a desktop VS Code executable on other systems. It uses an isolated `.test-host` profile and extension directory. The production renderer displays synthetic text and checks that the source, document version, dirty state, active editor, and selection are unchanged. It makes no model requests.
 
 The same host also exercises real TypeScript provider commands and the semantic collector. Run `CODE_SUBTITLE_SEMANTIC_HOST=native npm run test:host` to check TypeScript 7 (tsgo) using an installed native extension copied into the isolated profile. See [Semantic host validation](semantic-host-validation.md) for setup and coverage.
+
+The isolated host also loads the test-only language-model provider under `test/host/provider`. This exercises a non-Copilot `vendor:id` selection and streamed request without adding the provider to the product or VSIX. An installed third-party provider still needs separate manual validation for its authentication, quota, and data-handling behavior.
 
 For a visual inspection, set `CODE_SUBTITLE_VISUAL_CHECK=1` when running the command. Use the **Next** and **Finish** notification buttons to inspect the normal, long-line, and split-editor scenarios. This fixture is excluded from the VSIX.
 

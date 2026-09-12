@@ -68,6 +68,14 @@ Observed results on macOS arm64 with Node.js 24:
 
 The deterministic tests cover the inline-versus-notification decision and its 5-second clear, stored-choice reuse, stale-ID fallback, explicit-setting precedence, the Choose Model command, cursor-based dismissal of a current-line subtitle, persistence across visible-range changes, the display-expiry boundaries at 10 and 30 seconds on both the streamed and cached paths, and the phase colors. They do not establish on-screen readability of inline guidance, keyboard behavior on Windows/Linux, or live-model behavior.
 
+## Other language-model provider revision
+
+Issue #2 removes the Copilot-only assumption from model selection. The stable VS Code surface was verified against the [Language Model API](https://code.visualstudio.com/api/extension-guides/ai/language-model), the [Language Model Chat Provider API](https://code.visualstudio.com/api/extension-guides/ai/language-model-chat-provider), and the [API reference](https://code.visualstudio.com/api/references/vscode-api#lm): provider extensions contribute a vendor and return `LanguageModelChat` objects; consumers can call `selectChatModels({ vendor, id })` or omit the selector to enumerate all available models.
+
+The adapter now accepts `vendor:id`, keeps bare model IDs compatible as Copilot IDs, prefers Copilot in `auto`, falls back to all vendors when Copilot is unavailable, and stores automatic choices as vendor-qualified keys. Node tests cover exact vendor matching, Copilot preference, all-provider fallback, duplicate-safe picker identities, stored-choice reuse, stale-choice replacement, and neutral failure guidance.
+
+On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, and all 114 tests passed. The real VS Code 1.135.0 extension-host smoke also passed on macOS arm64 using an isolated test-only provider contributed as `code-subtitle-test`; it selected `code-subtitle-test:test-model`, streamed a subtitle through the production gateway, and preserved document text, version, dirty state, and selection. The test provider is under `test/` and excluded from the VSIX. No installed external provider was available in this environment, so provider-specific authentication, quota, retention, and live output quality remain unverified.
+
 ## Acceptance still requiring direct observation
 
 - Inline failure guidance readability and the `Shift+Alt+E` binding on Windows/Linux.
@@ -75,7 +83,7 @@ The deterministic tests cover the inline-versus-notification decision and its 5-
 - Subtitle readability on long lines, narrow splits, wrapped lines, themes, and zoom.
 - Live-generation command interaction, Undo history, keyboard conflicts and dismissal precedence.
 - Screen-reader behavior, right-to-left language layout, Windows/Linux, and other excluded environments.
-- Actual Copilot availability, first-use consent, translation accuracy, and preservation of negation/conditions.
+- Actual external-provider availability, first-use consent, provider-specific data handling, translation accuracy, and preservation of negation/conditions.
 - Time to first useful explanation and completion latency under the documented measurement protocol.
 
 Do not describe the preview as meeting these acceptance criteria until the corresponding checks are recorded. Automated tests establish deterministic contracts; they do not establish model quality or perceived performance.

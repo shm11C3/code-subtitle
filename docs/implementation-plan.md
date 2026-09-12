@@ -17,7 +17,7 @@ Use TypeScript with a small VS Code adapter and a deterministic core. Do not add
 | Input and output policy            | Validate one selection; bound adjacent context; build a prompt; normalize and validate subtitle text     | Luna / max: core policy                     |
 | Subtitle session                   | Start, deduplicate, cancel, expire, and invalidate requests; prevent stale output and stale cleanup      | Luna / max: session control                 |
 | Memory cache                       | Retrieve and store completed results; enforce expiry, memory limits, and document/workspace invalidation | Luna / max: core policy, after input policy |
-| VS Code adapter                    | Register commands/events; resolve a Copilot model; count tokens; stream text; render decorations         | Luna / max: extension integration           |
+| VS Code adapter                    | Register commands/events; resolve a preferred or explicitly selected provider model; count tokens; stream text; render decorations | Luna / max: extension integration |
 | Integration and product acceptance | Resolve difficult API/race issues; inspect UX; review contracts and scope; integrate and verify          | Main session                                |
 
 Module interfaces will follow a tracer bullet rather than a speculative framework. The session receives an immutable request snapshot, a model gateway, a subtitle view, a cache, and a clock. The gateway exposes preparation and cancellable text streaming. The view exposes preparing, partial, complete, and clear states without document mutation. Adapters translate VS Code events into session invalidation; model-specific objects do not enter input policy or cache logic.
@@ -48,7 +48,7 @@ Use public module behavior with controlled provider streams and a controllable c
 ## Decisions and validation gates
 
 - Keep the existing one-line decoration as the first candidate. Do not assume a stable two-line overlay exists.
-- Until measured model preferences exist, `auto` falls back to the documented one-time choice among available Copilot models; do not invent a speed ranking. Keep the chosen model in memory for the session.
+- Until measured model preferences exist, `auto` prefers Copilot and falls back to a documented one-time choice among all available provider models when Copilot is unavailable; do not invent a speed ranking. Keep the chosen model in memory for the session.
 - Pick the minimum VS Code version from the stable APIs actually used, then verify the declared minimum. A working test on the installed version alone does not prove minimum-version compatibility.
 - Keep the proposed shortcuts provisional until host validation; do not claim Windows/Linux keyboard validation from macOS.
 - The API reference allows first-use consent inside `sendRequest`. For requests already authorized, start the 10-second deadline when calling it. For a first request without established access, await its response handle before starting the stream deadline; cancellation remains available throughout. This first-use branch cannot promise a 10-second bound on the combined consent/request wait. Report it separately instead of counting consent as a generation timeout. See the [LanguageModelChat API](https://code.visualstudio.com/api/references/vscode-api#LanguageModelChat).

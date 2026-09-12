@@ -12,7 +12,8 @@ import { VscodeSubtitleView } from "./vscode-view.js";
 import { VscodeSemanticContextProvider } from "./vscode-semantic.js";
 
 const DISCLOSURE_KEY = "codeSubtitle.semanticContextDisclosureShown";
-const AUTO_MODEL_KEY = "codeSubtitle.autoModelId";
+const AUTO_MODEL_KEY = "codeSubtitle.autoModelKey";
+const LEGACY_AUTO_MODEL_KEY = "codeSubtitle.autoModelId";
 
 interface ActiveRequest {
   readonly input: SubtitleInput;
@@ -86,7 +87,9 @@ export function activate(context: vscode.ExtensionContext): void {
     createCancellationTokenSource: () => new vscode.CancellationTokenSource(),
   };
   const choiceStore: ModelChoiceStore = {
-    get: () => context.globalState.get<string>(AUTO_MODEL_KEY),
+    get: () =>
+      context.globalState.get<string>(AUTO_MODEL_KEY) ??
+      context.globalState.get<string>(LEGACY_AUTO_MODEL_KEY),
     set: (id) => context.globalState.update(AUTO_MODEL_KEY, id),
   };
   const gateway = new VscodeModelGateway({
@@ -329,7 +332,7 @@ function showFirstUseDisclosure(context: vscode.ExtensionContext): void {
   }
   void context.globalState.update(DISCLOSURE_KEY, true);
   void vscode.window.showInformationMessage(
-    "Code Subtitle sends the selection, nearby lines, and optional language-service type/docs and same-workspace definition excerpts to VS Code's model. Disable semantic context in Code Subtitle settings to send only the selection and nearby lines.",
+    "Code Subtitle sends the selection, nearby lines, and optional language-service type/docs and same-workspace definition excerpts to the language-model provider selected in VS Code. Disable semantic context in Code Subtitle settings to send only the selection and nearby lines.",
   );
 }
 

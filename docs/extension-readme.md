@@ -10,7 +10,7 @@ When a request cannot complete for a reason you can fix in the editor (selection
 
 The Windows/Linux default avoids the `Alt+E` menu-bar mnemonic that opens the Edit menu; it has not yet been verified on Windows or Linux hardware. To change the shortcut, open **Preferences: Open Keyboard Shortcuts** from the Command Palette. On macOS, you can also press `Cmd+K`, then `Cmd+S`. Search for `Code Subtitle: Show Subtitle`, select its pencil icon, press your preferred key combination, and press Enter. VS Code saves the override in your user keyboard settings. The same screen lets you change, remove, or reset the binding and inspect conflicts with other commands.
 
-The extension uses a GitHub Copilot model available in VS Code. It has no API-key setting or separate backend. On first use, choose a model and complete VS Code's consent flow if prompted. The choice is remembered across restarts while it is still available; run **Code Subtitle: Choose Model** to change it. Sign-in, model access, and available quota may be required.
+The extension uses a language model exposed through VS Code. It has no API-key setting or separate backend. With `auto`, Copilot models are preferred; if Copilot is unavailable, the picker lists models from every installed provider. On first use, choose a model and complete that provider's VS Code consent or configuration flow if prompted. The vendor-qualified choice is remembered across restarts while it is still available; run **Code Subtitle: Choose Model** to change it. Sign-in, model access, configuration, and available quota may be required, depending on the provider.
 
 Only explicit commands send the selected text and up to five adjacent lines on each side. Optional semantic context also includes bounded language-service type information, documentation, and one-hop definition excerpts from the same workspace folder. It queries at most three selected identifiers, waits at most 600 ms, and includes up to 4,000 UTF-16 code units of extra evidence. Missing or slow providers fall back to the selection and adjacent lines. Untitled files and untrusted workspaces use that basic path as well.
 
@@ -18,7 +18,7 @@ Disable `codeSubtitle.semanticContext` in user settings to omit semantic evidenc
 
 Code Subtitle does not modify source files, persist code or responses, or send telemetry. Model-provider data handling is governed by that provider and your organization. See the [VS Code Language Model API guide](https://code.visualstudio.com/api/extension-guides/ai/language-model).
 
-Output language follows VS Code's display language. Override it with `codeSubtitle.outputLanguage`; pin a Copilot model ID with `codeSubtitle.model` if needed, which takes precedence over the remembered choice. Both are user-level settings.
+Output language follows VS Code's display language. Override it with `codeSubtitle.outputLanguage`. Set `codeSubtitle.model` to a bare Copilot model ID or a vendor-qualified `vendor:id` value for another provider; this explicit setting takes precedence over the remembered choice. Both are user-level settings.
 
 This preview requires desktop VS Code 1.135 or newer. Long lines and narrow editors can clip line-end decorations. Display readability, screen-reader behavior, live-model quality, and performance still require manual acceptance. Notebook, browser, and Remote environments are outside initial validation.
 

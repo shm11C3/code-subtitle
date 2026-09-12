@@ -124,7 +124,7 @@ test("failures that need action outside the editor keep the notification", () =>
   app.view.notify("modelUnavailable", createInput());
 
   assert.equal(app.decoration, undefined);
-  assert.deepEqual(app.notifications, ["No Copilot model is available for Code Subtitle."]);
+  assert.deepEqual(app.notifications, ["No language model is available for Code Subtitle."]);
   assert.equal(app.contexts.at(-1), false);
   assert.equal(app.pendingTimers(), 0);
 });
