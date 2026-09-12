@@ -4,7 +4,7 @@ Select code or a short comment, or simply place the cursor on a line, and run **
 
 Subtitles are aimed at experienced engineers reading OSS or reviewing code. They connect a visible mechanism to one useful responsibility, invariant, failure boundary, or tradeoff. For example, a request-ID guard can explain why a late response cannot overwrite the current view. The model is instructed to avoid syntax narration and unsupported design intent; comments alone receive a faithful short translation.
 
-Use `Shift+Alt+E` on Windows/Linux or `Ctrl+Alt+E` on macOS, or pick **Show Subtitle** from the editor's right-click menu. Use **Dismiss Subtitle** or `Esc` to clear it. Selection changes, edits, editor switches, and the display deadline also clear the subtitle. **Clear Cache** clears the in-memory results and cancels active generation.
+Use `Shift+Alt+E` on Windows/Linux or `Ctrl+Alt+E` on macOS, or pick **Show Subtitle** from the editor's right-click menu. Use **Dismiss Subtitle** or `Esc` to clear it. Selection changes, edits, editor switches, and the display deadline (10 to 30 seconds, scaled to the subtitle's length) also clear the subtitle. **Clear Cache** clears the in-memory results and cancels active generation.
 
 When a request cannot complete for a reason you can fix in the editor (selection too large, unusable or overlong output, timeout, or a failed request), a short hint appears in the subtitle slot and disappears after a few seconds. Problems that need attention elsewhere, such as no available model or denied access, are shown as notifications.
 

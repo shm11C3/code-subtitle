@@ -60,7 +60,7 @@ These are examples of displayed content. The extension does not insert into or r
 | Short explanation or translation | Surface one grounded engineering insight for code; translate comments while preserving their meaning              |
 | One or two lines near the code   | The MVP baseline is one line rendered with a Decoration; decide whether to use two lines after display validation |
 | Streaming                        | Start displaying from the first content instead of waiting for the full response                                  |
-| Temporary subtitle               | Clear it on selection change, edit, editor switch, `Esc`, or expiry                                               |
+| Temporary subtitle               | Clear it on selection change, edit, editor switch, `Esc`, or expiry (10–30 s, scaled to the text length)          |
 | Cancellation and reuse           | Cancel old requests and use a short-lived, workspace-scoped memory cache                                          |
 | Minimal configuration            | Use automatic output language and automatic model selection by default                                            |
 

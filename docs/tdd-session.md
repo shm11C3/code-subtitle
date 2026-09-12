@@ -95,3 +95,9 @@ GREEN: The controlled clock now advances to due timers in order. Later stream fr
 RED: A new test streamed an overlong response and required `notify` to receive the failed request's input alongside the `outputTooLong` code, so the view can render guidance beside the code. The recording view captured `undefined` because the session called `notify(code)` only.
 
 GREEN: `fail` and the whitespace-only guard pass the request input to `notify(failure, input)`. The session still clears the view before reporting and still reports only for the current request. `npm test` passes.
+
+## Cycle 16: reading-time display expiry
+
+RED: A test completed a 200-grapheme subtitle through the stream and again through the cache, requiring the view to stay visible at 29,999 ms and clear at 30,000 ms on both paths. The fixed 10-second display lifetime from cycle 14 cleared it early.
+
+GREEN: `showUntilExpiry` now takes the completed text and schedules expiry with `displayTtlMs` (grapheme count × 150 ms, clamped to 10–30 seconds) for the streamed-completion and cache-hit paths. The cycle 14 boundaries at 9,999/10,000 ms still hold for short text because 10 seconds is the minimum. `npm test` passes.

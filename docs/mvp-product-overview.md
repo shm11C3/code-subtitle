@@ -24,7 +24,7 @@ Select → shortcut → short subtitle near the end of the selection → continu
 
 Only one subtitle is displayed at a time. A selection alone does not make a request. If a different piece of code is selected while generation is in progress, cancel the active request and clear the subtitle. Do not generate for the new selection until the next explicit action.
 
-Clear the subtitle within at most 10 seconds after generation completes. Clear it first when `Esc` is pressed, the selection changes, the target document is edited, or the editor changes. Scrolling the target out of view does not clear it, because re-reading the top of a long selection is still reading. Do not provide history, pinning, or a copy-only UI.
+Clear the subtitle 10 to 30 seconds after generation completes, scaled to the completed text's length (150 ms per visible character) so a long sentence can be read side by side with the code. Clear it first when `Esc` is pressed, the selection changes, the target document is edited, or the editor changes. Scrolling the target out of view does not clear it, because re-reading the top of a long selection is still reading. Do not provide history, pinning, or a copy-only UI.
 
 ## Output contract
 

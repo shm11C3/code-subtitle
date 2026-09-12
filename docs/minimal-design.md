@@ -109,7 +109,7 @@ Do not include consent waiting in the generation timeout. For an unconsented fir
 | Scroll the target range out of view                                      | Keep the subtitle; scrolling within the same editor is reading, not moving on                |
 | `Esc`                                                                    | Cancel and clear only when the subtitle is preparing, generating, or visible                 |
 | Language or model setting change                                         | Cancel and clear, and invalidate caches for the old setting                                  |
-| 10 seconds after generation completes                                    | Clear the subtitle. Manage the cache expiration separately                                   |
+| 10–30 seconds after generation completes                                 | Clear the subtitle after `clamp(graphemes × 150 ms, 10 s, 30 s)`; cache expiry is separate   |
 | 10 seconds after the stream deadline is armed                            | Cancel the request and stream, and show brief timeout guidance                               |
 | Disable or shut down                                                     | Release the token, timers, events, decoration, and cache                                     |
 

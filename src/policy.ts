@@ -25,6 +25,9 @@ const MARKDOWN_LINK = /\[[^\]\n]+\]\([^)\n]+\)|(?:https?:\/\/|www\.)\S+/iu;
 const MARKDOWN_HEADING = /^\s{0,3}#{1,6}(?:\s|$)/u;
 const MARKDOWN_LIST = /^\s{0,3}(?:[-*+]\s+|\d+[.)]\s+)/u;
 const MARKDOWN_BLOCKQUOTE = /^\s{0,3}>\s?/u;
+const DISPLAY_MS_PER_GRAPHEME = 150;
+const MIN_DISPLAY_TTL_MS = 10_000;
+const MAX_DISPLAY_TTL_MS = 30_000;
 const MAX_SEMANTIC_ENTRIES = 9;
 const MAX_SEMANTIC_ENTRY_UNITS = 1_500;
 const MAX_SEMANTIC_TOTAL_UNITS = 4_000;
@@ -69,6 +72,12 @@ export function outputLimit(language: string): number {
 export function graphemeLength(text: string): number {
   const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
   return Array.from(segmenter.segment(text)).length;
+}
+
+/** How long a completed subtitle stays visible: reading time by grapheme count, clamped to 10–30 s. */
+export function displayTtlMs(text: string): number {
+  const readingTime = graphemeLength(text) * DISPLAY_MS_PER_GRAPHEME;
+  return Math.min(MAX_DISPLAY_TTL_MS, Math.max(MIN_DISPLAY_TTL_MS, readingTime));
 }
 
 function containsUnsafeControlCharacters(text: string): boolean {
