@@ -90,6 +90,12 @@ RED: Tests required `needsTokenCount` to return false when the prompt's UTF-8 by
 
 GREEN: `needsTokenCount` compares `Buffer.byteLength` with `maxTokens`; `fitInput` checks it before the first and each subsequent count. The assumption that every byte-level BPE token covers at least one byte is stated in the code and in design §2. Provider-side counting behavior is unchanged when the bound is exceeded.
 
+## Language-aware calibration examples cycle
+
+RED: A test required `rust`, `go`, and `python` inputs to receive dedicated calibration examples, every other `languageId` (including `constructor` and `__proto__`) to receive the TypeScript/JavaScript set, one generic `return normalize(input)` example to appear in all sets, exactly three example pairs per prompt, the data JSON keys to stay unchanged, and `POLICY_VERSION` to be `5`. It failed because all prompts used the single TypeScript set under version `4`.
+
+GREEN: `buildPrompt` looks up examples in a `Map` keyed by `languageId` with the generic example appended. The new snippets are synthetic and distinct from the live evaluation cases so that evaluation is not contaminated. This changes prompt construction only; whether the examples improve generated subtitles is a live-harness question.
+
 ## Cache TDD cycles
 
 The cache tests use a controllable clock and fake prepared requests. They never persist data to disk or call a model.

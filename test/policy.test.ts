@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SubtitleError, type SubtitleInput } from "../src/contracts.js";
 import {
+  POLICY_VERSION,
   buildPrompt,
   createInput,
   fitInput,
@@ -261,6 +262,61 @@ test("requests an experienced-reader insight while sending only allowed input da
     after: "after",
   });
   assert.doesNotMatch(prompt, /private-editor|private-workspace|private\/secret/iu);
+});
+
+test("selects calibration examples by language and keeps one generic example", () => {
+  const promptFor = (languageId: string): string =>
+    buildPrompt(
+      createInput({
+        text: "before\nvalue = compute()\nafter",
+        selections: [{ start: { line: 1, character: 0 }, end: { line: 1, character: 17 } }],
+        documentUri: "file:///workspace/example",
+        documentVersion: 1,
+        editorId: "editor-1",
+        languageId,
+        outputLanguage: "en",
+      }),
+    );
+  const generic = "Code: return normalize(input);";
+  const typescriptExample = "Code: const id = ++activeId;";
+
+  const rust = promptFor("rust");
+  assert.match(rust, /Code: .*unwrap_or_else\(\|poisoned\|/u);
+  assert.ok(rust.includes(generic));
+  assert.equal(rust.includes(typescriptExample), false);
+
+  const go = promptFor("go");
+  assert.match(go, /Code: select \{/u);
+  assert.ok(go.includes(generic));
+  assert.equal(go.includes(typescriptExample), false);
+
+  const python = promptFor("python");
+  assert.match(python, /Code: async with semaphore:/u);
+  assert.ok(python.includes(generic));
+  assert.equal(python.includes(typescriptExample), false);
+
+  for (const languageId of ["typescript", "javascript", "cobol", "constructor", "__proto__"]) {
+    const fallback = promptFor(languageId);
+    assert.ok(fallback.includes(typescriptExample), languageId);
+    assert.ok(fallback.includes(generic), languageId);
+    assert.equal(fallback.includes("unwrap_or_else"), false, languageId);
+  }
+
+  for (const prompt of [rust, go, python]) {
+    const examples = prompt.split("\n").filter((line) => line.startsWith("Code: "));
+    const subtitles = prompt.split("\n").filter((line) => line.startsWith("Subtitle: "));
+    assert.equal(examples.length, 3);
+    assert.equal(subtitles.length, 3);
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1)) as Record<string, string>;
+    assert.deepEqual(Object.keys(data).sort(), [
+      "after",
+      "before",
+      "languageId",
+      "outputLanguage",
+      "selection",
+    ]);
+  }
+  assert.equal(POLICY_VERSION, "5");
 });
 
 test("includes whitelisted semantic evidence while excluding local metadata", () => {
