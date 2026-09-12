@@ -89,3 +89,9 @@ GREEN: Disposal aborts the active request, clears the view and cache, and makes 
 RED: The initial test clock fired all callbacks immediately, so it could not prove the 50 ms batching, 10 second request deadline, or 10 second display lifetime. The scheduler was changed to retain each timer's due time, and boundary assertions were added for 49/50 ms and 9,999/10,000 ms.
 
 GREEN: The controlled clock now advances to due timers in order. Later stream fragments remain buffered at 49 ms and flush at 50 ms; authorized requests remain active at 9,999 ms and time out at 10,000 ms; completed subtitles remain visible at 9,999 ms and clear at 10,000 ms. The focused session slice passes with `node scripts/test-slice.cjs session`.
+
+## Cycle 15: cache lookup before fitting
+
+RED: Three tests required a repeated request to render the cached text with zero `fit` and zero `stream` calls, fitting to run outside the generation deadline and to cancel quietly on dismissal, and an `inputTooLarge` raised during fitting to be reported as that failure. The RED run hung rather than failed: the old session never called `fit`, so the deadline test waited for a fit start that never came (it now carries a 2 s timeout).
+
+GREEN: `PreparedRequest` gained `fit(signal)`; `prepare` only resolves the model and access state. The session checks the cache immediately after `prepare`, calls `fit` on a miss, arms the request timer at the documented points afterwards, and stores completed results under the same pre-enrichment identity. Two older polling loops were widened from 20 to 50 microtasks because the extra await shifts the first fragment by a few ticks; the assertions are unchanged. The full suite passes with `npm test`.

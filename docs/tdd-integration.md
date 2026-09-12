@@ -29,6 +29,8 @@ The following public extension flows were exercised with real session, policy, c
 
 A further regression test confirms that a dependency edit during an uncooperative provider request prevents model submission, even after the provider eventually resolves. It passed immediately using the existing cancellation path and is not claimed as a failing-first cycle.
 
+Revision: RED: a repeated command with semantic context enabled re-queried the providers before finding the cached result. GREEN: the cache lookup now precedes evidence collection and token fitting (session cycle 15); the repeated command makes no provider or model request.
+
 ## Parallel iteration
 
 `node scripts/test-slice.cjs <name>` transpiles and runs one role's behavioral test file independently. It intentionally skips type checking during the local RED/GREEN iteration so another role's intermediate type errors do not block unrelated behavior tests. Final acceptance requires the complete `npm run check` and `npm test`; a slice result alone is insufficient.

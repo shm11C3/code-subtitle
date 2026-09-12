@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  Clock,
-  ModelGateway,
-  PreparedRequest,
-  SubtitleCache,
-  SubtitleInput,
-  SubtitlePhase,
-  SubtitleView,
+import {
+  SubtitleError,
+  type Clock,
+  type ModelGateway,
+  type PreparedRequest,
+  type SubtitleCache,
+  type SubtitleInput,
+  type SubtitlePhase,
+  type SubtitleView,
 } from "../src/contracts.js";
 import { SubtitleSession } from "../src/session.js";
 
@@ -142,6 +143,7 @@ function createGateway(stream: () => Promise<AsyncIterable<string>>): ModelGatew
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: `${input.documentUri}:${input.selection}`,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream,
       };
     },
@@ -175,7 +177,7 @@ test("shows the first streamed fragment before the model completes", async () =>
 
   for (
     let attempt = 0;
-    attempt < 20 && !view.shows.some((show) => show.text.length > 0);
+    attempt < 50 && !view.shows.some((show) => show.text.length > 0);
     attempt += 1
   ) {
     await Promise.resolve();
@@ -220,7 +222,7 @@ test("batches later fragments until the 50ms flush boundary", async () => {
   const pending = session.show(createInput());
   for (
     let attempt = 0;
-    attempt < 20 && !view.shows.some((show) => show.text === "First fragment");
+    attempt < 50 && !view.shows.some((show) => show.text === "First fragment");
     attempt += 1
   ) {
     await Promise.resolve();
@@ -257,6 +259,7 @@ test("cancellation settles an uncooperative request without clearing the replace
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: input.selection,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream: async () => {
           if (input.selection === "request A") {
             startA();
@@ -301,6 +304,7 @@ test("late chunks and failures from a cancelled request cannot affect a newer re
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: input.selection,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream: async () => {
           if (input.selection === "request A") {
             return (async function* (): AsyncIterable<string> {
@@ -328,7 +332,7 @@ test("late chunks and failures from a cancelled request cannot affect a newer re
   const pendingA = session.show(createInput({ selection: "request A" }));
   for (
     let attempt = 0;
-    attempt < 20 && !view.shows.some((show) => show.text === "A initial");
+    attempt < 50 && !view.shows.some((show) => show.text === "A initial");
     attempt += 1
   ) {
     await Promise.resolve();
@@ -366,6 +370,7 @@ test("completed results are reused without generation and expire from the view",
         model: { vendor: "copilot", id: "test-model", version: "1" },
         prompt: `${input.documentUri}:${input.selection}`,
         alreadyAuthorized: true,
+        fit: async () => ({ input, prompt: input.selection }),
         stream: async () => {
           streamCalls += 1;
           return (async function* (): AsyncIterable<string> {
@@ -399,6 +404,146 @@ test("completed results are reused without generation and expire from the view",
   assert.equal(view.clearCount, clearCountAfterRender);
   clock.advanceBy(1);
   assert.equal(view.clearCount, clearCountAfterRender + 1);
+});
+
+test("a cache hit renders the completed text without fitting or streaming", async () => {
+  let fitCalls = 0;
+  let streamCalls = 0;
+  const view = new RecordingView();
+  const cache = new MemoryCache();
+  const gateway: ModelGateway = {
+    async prepare(input) {
+      const prompt = `${input.documentUri}:${input.selection}`;
+      return {
+        input,
+        model: { vendor: "copilot", id: "test-model", version: "1" },
+        prompt,
+        alreadyAuthorized: true,
+        fit: async () => {
+          fitCalls += 1;
+          return { input, prompt };
+        },
+        stream: async () => {
+          streamCalls += 1;
+          return (async function* (): AsyncIterable<string> {
+            yield "Reusable explanation.";
+          })();
+        },
+      };
+    },
+  };
+  const session = new SubtitleSession({
+    gateway,
+    view,
+    cache,
+    clock: new ManualClock(),
+    isCurrent: () => true,
+  });
+  const input = createInput();
+
+  await session.show(input);
+  assert.equal(fitCalls, 1);
+  assert.equal(streamCalls, 1);
+
+  const showsBeforeHit = view.shows.length;
+  await session.show(input);
+  assert.equal(fitCalls, 1);
+  assert.equal(streamCalls, 1);
+  assert.equal(cache.gets, 2);
+  assert.deepEqual(
+    view.shows.slice(showsBeforeHit).map((show) => show.phase),
+    ["preparing", "visible"],
+  );
+  assert.equal(view.shows.at(-1)?.text, "Reusable explanation.");
+});
+
+test(
+  "fitting is outside the generation deadline and aborts quietly",
+  { timeout: 2_000 },
+  async () => {
+    let fitStarted!: () => void;
+    const started = new Promise<void>((resolve) => {
+      fitStarted = resolve;
+    });
+    let streamCalls = 0;
+    const view = new RecordingView();
+    const clock = new ManualClock();
+    const session = new SubtitleSession({
+      gateway: {
+        async prepare(input) {
+          return {
+            input,
+            model: { vendor: "copilot", id: "test-model", version: "1" },
+            prompt: input.selection,
+            alreadyAuthorized: true,
+            fit: async (signal) => {
+              fitStarted();
+              await new Promise<void>((_, reject) => {
+                signal.addEventListener("abort", () => {
+                  const error = new Error("aborted");
+                  error.name = "AbortError";
+                  reject(error);
+                });
+              });
+              return { input, prompt: input.selection };
+            },
+            stream: async () => {
+              streamCalls += 1;
+              return (async function* (): AsyncIterable<string> {
+                yield "unused";
+              })();
+            },
+          };
+        },
+      },
+      view,
+      cache: new MemoryCache(),
+      clock,
+      isCurrent: () => true,
+    });
+
+    const pending = session.show(createInput());
+    await started;
+    clock.advanceBy(10_000);
+    assert.deepEqual(view.failures, []);
+
+    session.dismiss();
+    await pending;
+    assert.equal(streamCalls, 0);
+    assert.deepEqual(view.failures, []);
+    assert.equal(view.clearCount > 0, true);
+  },
+);
+
+test("an oversized prompt reported during fitting notifies inputTooLarge", async () => {
+  const view = new RecordingView();
+  const cache = new MemoryCache();
+  const session = new SubtitleSession({
+    gateway: {
+      async prepare(input) {
+        return {
+          input,
+          model: { vendor: "copilot", id: "test-model", version: "1" },
+          prompt: input.selection,
+          alreadyAuthorized: true,
+          fit: async () => {
+            throw new SubtitleError("inputTooLarge");
+          },
+          stream: async () => {
+            throw new Error("stream must not start");
+          },
+        };
+      },
+    },
+    view,
+    cache,
+    clock: new ManualClock(),
+    isCurrent: () => true,
+  });
+
+  await session.show(createInput());
+  assert.deepEqual(view.failures, ["inputTooLarge"]);
+  assert.equal(cache.puts, 0);
 });
 
 test("Japanese output above the concise target streams and is cached without truncation", async () => {
@@ -497,6 +642,7 @@ test("authorized requests time out without caching partial work", async () => {
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamStarted();
             return neverCompletes;
@@ -545,6 +691,7 @@ test("unconsented requests start the generation timeout after the response handl
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: false,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamCalled();
             return streamReady;
@@ -590,6 +737,7 @@ test("document invalidation cancels the active subtitle without retrying", async
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: request.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input: request, prompt: request.selection }),
           stream: async () => {
             streamStarted();
             return neverCompletes;
@@ -622,6 +770,7 @@ test("provider aborts are treated as quiet cancellation", async () => {
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             const error = new Error("user closed the model picker");
             error.name = "AbortError";
@@ -656,6 +805,7 @@ test("repeating the same active request does not start a second stream", async (
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamCalls += 1;
             return (async function* (): AsyncIterable<string> {
@@ -702,6 +852,7 @@ test("clearing the cache also cancels active work before it can be saved", async
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: `${input.documentUri}:${input.selection}`,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamStarted();
             return (async function* (): AsyncIterable<string> {
@@ -748,6 +899,7 @@ test("disposing the session cancels work and rejects later commands quietly", as
           model: { vendor: "copilot", id: "test-model", version: "1" },
           prompt: input.selection,
           alreadyAuthorized: true,
+          fit: async () => ({ input, prompt: input.selection }),
           stream: async () => {
             streamStarted();
             return neverCompletes;

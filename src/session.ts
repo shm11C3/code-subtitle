@@ -185,6 +185,14 @@ export class SubtitleSession {
       return;
     }
 
+    const fitResult = await this.waitForCancellation(
+      Promise.resolve().then(() => preparedResult.fit(active.controller.signal)),
+      active,
+    );
+    if (fitResult === CANCELLED || !this.isLive(active)) {
+      return;
+    }
+
     const streamPromise = Promise.resolve().then(() =>
       preparedResult.stream(active.controller.signal),
     );

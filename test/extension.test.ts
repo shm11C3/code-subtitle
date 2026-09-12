@@ -273,6 +273,22 @@ test("an explicit command includes provider evidence in the model request", asyn
   }
 });
 
+test("a repeated command reuses the result without provider or model requests", async () => {
+  const app = fixture({ semanticContext: true });
+  try {
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    const providerCallsAfterFirst = app.providerCalls.length;
+    assert.ok(providerCallsAfterFirst > 0);
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    assert.equal(app.providerCalls.length, providerCallsAfterFirst);
+    assert.equal(app.text, "↳ Returns the current value.");
+  } finally {
+    app.dispose();
+  }
+});
+
 test("workspace dependency edits invalidate semantic results before reuse", async () => {
   const app = fixture({ semanticContext: true });
   try {

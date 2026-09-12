@@ -23,7 +23,7 @@ flowchart TD
   C -->|Not met| D[Short guidance]
   C -->|Met| E[Resolve model and check cache]
   E -->|Hit| F[Show subtitle again]
-  E -->|Miss| G[Request Language Model API]
+  E -->|Miss| G[Collect evidence, fit prompt, request Language Model API]
   G --> H[Receive stream]
   H --> I{Request ID and document/selection still current}
   I -->|No| J[Discard]
@@ -46,7 +46,7 @@ When `codeSubtitle.show` runs, read `window.activeTextEditor`, `editor.selection
 - Skip `countTokens` when it cannot change the outcome. Every byte-level BPE token covers at least one UTF-8 byte, so the prompt's UTF-8 byte length is an upper bound on its token count; a prompt whose byte length is at most `maxInputTokens` is submitted without counting, and the bound is rechecked before each later count while context is reduced. This assumes byte-level tokenization and ignores per-message framing tokens, which are negligible against budgets in the thousands of tokens.
 - When the selection end is at the start of the next line, place the display anchor on the actual last line selected.
 
-Use for the cache the same input that is actually sent after applying the limits. Recheck that the snapshot is still valid while waiting for model resolution or token counting.
+Use for the cache the bounded input before optional enrichment: the selection, adjacent lines, language IDs, range, and local identifiers, plus the policy version and model identity (see §7). Semantic collection and token fitting run only after a cache miss. Recheck that the snapshot is still valid while waiting for model resolution, evidence collection, or token counting.
 
 ## 3. Language Model API and model selection
 
@@ -126,9 +126,11 @@ Keep both MVP caches only in Extension Host memory. “Workspace cache” does n
 
 Separate multiple roots by folder. For documents outside a workspace or unsaved documents, use only that document's short-term cache and clear it when the document closes. Discard the relevant memory when a folder is deleted, the window closes, or the extension restarts.
 
-The key is a hash of normalized input containing the workspace identifier, document URI, selection position, the actual selection and surrounding context sent, `languageId`, output language, processing-rules version, model vendor/id/version, and prompt version. Use the URI only for local matching. Do not send a body hash externally, and do not treat it as anonymized data.
+The key is a hash of normalized input containing the workspace identifier, document URI, selection position, the bounded selection and surrounding context, `languageId`, output language, processing-rules version, model vendor/id/version, and the pre-enrichment prompt. Use the URI only for local matching. Do not send a body hash externally, and do not treat it as anonymized data.
 
-Use `document.version` to determine whether an in-flight request has become stale. On a document edit, delete both caches for that document. With semantic context enabled, also invalidate the containing workspace cache and active request on document or filesystem changes so referenced definitions cannot remain stale. Resolve evidence before each cache lookup; the actual fitted prompt participates in cache identity. Do not reuse a result when the language, model, prompt, or context changes. A model-list change also invalidates model resolution and both caches.
+The lookup happens right after model resolution and before semantic collection and token fitting, so a hit pays for neither. This is sound because enrichment and fitting are deterministic for a given model and workspace state: the same bounded input against the same model and unchanged workspace produces the same fitted prompt. The extension keeps that state fresh by invalidating the workspace cache on any source change while semantic context is enabled and by clearing both caches when `codeSubtitle.semanticContext`, the model, or the language settings change. Completed results are stored under the same pre-enrichment identity.
+
+Use `document.version` to determine whether an in-flight request has become stale. On a document edit, delete both caches for that document. With semantic context enabled, also invalidate the containing workspace cache and active request on document or filesystem changes so referenced definitions cannot remain stale. Do not reuse a result when the language, model, prompt, or context changes. A model-list change also invalidates model resolution and both caches.
 
 Save only a non-empty subtitle from the current request after normal completion and after it satisfies the length and format conditions. Do not save cancellations, failures, or partial output. On a hit, show the completed text immediately; do not animate it one character at a time or communicate with the model again. `codeSubtitle.clearCache` deletes both layers and cancels in-flight requests, and must prevent an immediate result from being saved again.
 

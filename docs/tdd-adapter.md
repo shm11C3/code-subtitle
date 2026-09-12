@@ -8,6 +8,8 @@ The gateway always queries the `copilot` vendor. A configured model setting must
 
 `fitInput` supplies the final prompt and calls the injected token counter. The adapter converts each `AbortSignal` into a disposable `CancellationTokenSource`, passes a user message to `countTokens`, and disposes the source on completion, error, or abort. The stream bridge follows the same rule for `sendRequest`; a provider error is converted to a typed `SubtitleError` code and never exposes the provider's message.
 
+`prepare` resolves the model and access state only and returns the pre-enrichment prompt as cache key material. Evidence collection and token counting are deferred to `fit(signal)`, which the session calls after a cache miss; `stream(signal)` reuses the fitted prompt and fits first if `fit` has not run. RED: a new test required `prepare` to make no `countTokens` call, `fit` to count once, and `stream` to send the fitted prompt without counting again; the run hung because the old `prepare` awaited the held counter before returning. GREEN: the deferred `fit` closure memoizes the fitted result; the abort test now aborts `fit` and still observes immediate token-source cancellation and disposal.
+
 The renderer owns one reusable decoration type. It anchors a zero-width range at the selected line's end, renders `after.contentText`, uses theme colors for phases, and clears through `setDecorations` without editing the document. The lookup callback makes the class usable from an extension host smoke test and keeps editor identity outside the renderer.
 
 The first adapter behavior was tested as a vertical slice:
