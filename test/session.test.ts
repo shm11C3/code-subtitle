@@ -88,6 +88,7 @@ class RecordingView implements SubtitleView {
   }> = [];
   clearCount = 0;
   readonly failures: string[] = [];
+  readonly failureInputs: Array<SubtitleInput | undefined> = [];
 
   show(input: SubtitleInput, text: string, phase: SubtitlePhase): void {
     this.shows.push({ input, text, phase });
@@ -97,8 +98,9 @@ class RecordingView implements SubtitleView {
     this.clearCount += 1;
   }
 
-  notify(failure: Parameters<SubtitleView["notify"]>[0]): void {
+  notify(failure: Parameters<SubtitleView["notify"]>[0], input?: SubtitleInput): void {
     this.failures.push(failure);
+    this.failureInputs.push(input);
   }
 }
 
@@ -456,6 +458,26 @@ test("output beyond the display limit is reported as too long and never cached",
     false,
   );
   assert.equal(view.clearCount > 0, true);
+});
+
+test("failures pass the request input so guidance can be rendered beside the code", async () => {
+  const view = new RecordingView();
+  const input = createInput();
+  const session = new SubtitleSession({
+    gateway: createGateway(async () =>
+      (async function* (): AsyncIterable<string> {
+        yield "a".repeat(401);
+      })(),
+    ),
+    view,
+    cache: new MemoryCache(),
+    clock: new ManualClock(),
+    isCurrent: () => true,
+  });
+
+  await session.show(input);
+  assert.deepEqual(view.failures, ["outputTooLong"]);
+  assert.deepEqual(view.failureInputs, [input]);
 });
 
 test("validates raw streamed lines before display normalization", async () => {

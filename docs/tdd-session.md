@@ -89,3 +89,9 @@ GREEN: Disposal aborts the active request, clears the view and cache, and makes 
 RED: The initial test clock fired all callbacks immediately, so it could not prove the 50 ms batching, 10 second request deadline, or 10 second display lifetime. The scheduler was changed to retain each timer's due time, and boundary assertions were added for 49/50 ms and 9,999/10,000 ms.
 
 GREEN: The controlled clock now advances to due timers in order. Later stream fragments remain buffered at 49 ms and flush at 50 ms; authorized requests remain active at 9,999 ms and time out at 10,000 ms; completed subtitles remain visible at 9,999 ms and clear at 10,000 ms. The focused session slice passes with `node scripts/test-slice.cjs session`.
+
+## Cycle 15: failures carry the request input
+
+RED: A new test streamed an overlong response and required `notify` to receive the failed request's input alongside the `outputTooLong` code, so the view can render guidance beside the code. The recording view captured `undefined` because the session called `notify(code)` only.
+
+GREEN: `fail` and the whitespace-only guard pass the request input to `notify(failure, input)`. The session still clears the view before reporting and still reports only for the current request. `npm test` passes.

@@ -6,6 +6,8 @@ Subtitles are aimed at experienced engineers reading OSS or reviewing code. They
 
 Use `Alt+E` on Windows/Linux or `Ctrl+Alt+E` on macOS. Use **Dismiss Subtitle** or `Esc` to clear it. Selection changes, edits, editor switches, and the display deadline also clear the subtitle. **Clear Cache** clears the in-memory results and cancels active generation.
 
+When a request cannot complete for a reason you can fix in the editor (selection too large, unusable or overlong output, timeout, or a failed request), a short hint appears in the subtitle slot and disappears after a few seconds. Problems that need attention elsewhere, such as no available model or denied access, are shown as notifications.
+
 To change the shortcut, open **Preferences: Open Keyboard Shortcuts** from the Command Palette. On macOS, you can also press `Cmd+K`, then `Cmd+S`. Search for `Code Subtitle: Show Subtitle`, select its pencil icon, press your preferred key combination, and press Enter. VS Code saves the override in your user keyboard settings. The same screen lets you change, remove, or reset the binding and inspect conflicts with other commands.
 
 The extension uses a GitHub Copilot model available in VS Code. It has no API-key setting or separate backend. On first use, choose a model and complete VS Code's consent flow if prompted. Sign-in, model access, and available quota may be required.

@@ -17,3 +17,9 @@ The first adapter behavior was tested as a vertical slice:
 3. The focused tests cover exact configured-ID selection without Quick Pick, one-time automatic selection reuse, stream completion and token-source disposal, safe mapping of provider failures, and model re-selection after a stream-level `NotFound`.
 
 The production renderer smoke test uses synthetic text and asserts that document text, version, dirty state, and selection remain unchanged after preparing, streaming, visible, clear, and dispose phases. Real model requests, semantic translation quality, accessibility, and final TTFE remain extension-host or manual acceptance checks.
+
+## Inline failure guidance
+
+RED: `test/view.test.ts` loads the production renderer with a fake `vscode` module and an injected timer. It required actionable failures (`selection`, `inputTooLarge`, `outputInvalid`, `outputTooLong`, `timeout`, `network`) to render at the anchor line in `editorWarning.foreground` without a notification, failures needing action outside the editor (`modelUnavailable`, `accessDenied`, `blocked`) to keep the notification, a missing input or editor to fall back to the notification, and an inline failure to clear itself after one timer tick or when a new subtitle or `clear` arrives. The build failed because the renderer accepted only a lookup and `notify` had no input parameter.
+
+GREEN: `VscodeSubtitleView` accepts optional timers, renders inline failures through the same decoration path as subtitles, keeps `codeSubtitle.active` true while the guidance is visible so `Esc` dismisses it, and arms a 5-second clear that `show`, `clear`, and `dispose` cancel. The extension's `dismiss` command and document invalidation clear the view directly because the session holds no active request after a failure. `npm test` passes.

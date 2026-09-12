@@ -124,6 +124,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const dismissActive = (): void => {
     activeRequest = undefined;
     session.dismiss();
+    // Inline failure guidance outlives the session's request, so clear the view directly.
+    view.clear();
   };
 
   const invalidateSource = (uri: vscode.Uri): void => {
@@ -138,6 +140,7 @@ export function activate(context: vscode.ExtensionContext): void {
       (workspaceId !== undefined && activeRequest?.input.workspaceId === workspaceId)
     ) {
       activeRequest = undefined;
+      view.clear();
     }
   };
 

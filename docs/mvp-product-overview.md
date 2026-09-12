@@ -68,7 +68,7 @@ Formal support for Notebooks, the browser version, and Remote environments is ou
 
 Code Subtitle does not require an API key. The standard path requires a Copilot model available through VS Code and permission to use it. On first use, briefly explain the range that will be sent and leave any required consent for model use to VS Code's mechanisms.
 
-If no model is available, consent is denied, the quota is exceeded, or the network is disconnected, briefly state the reason and the next action. Do not automatically retry failures in a way that consumes reading time or quota. Treat cancellation caused by a selection change as normal operation and show no notification.
+If no model is available, consent is denied, the quota is exceeded, or the network is disconnected, briefly state the reason and the next action. Guidance the reader can act on inside the editor (selection, input size, unusable or overlong output, timeout, or a failed request) appears in the subtitle slot beside the code and clears itself after a few seconds; failures that need action outside the editor (no model, access denied, blocked or exhausted quota) use a notification. Do not automatically retry failures in a way that consumes reading time or quota. Treat cancellation caused by a selection change as normal operation and show no notification.
 
 ## Success criteria
 

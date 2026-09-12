@@ -74,7 +74,7 @@ export class SubtitleSession {
     if (input.selection.trim().length === 0) {
       this.cancelActive();
       this.view.clear();
-      this.view.notify("selection");
+      this.view.notify("selection", input);
       return Promise.resolve();
     }
 
@@ -347,7 +347,7 @@ export class SubtitleSession {
     const isCurrent = this.active === active;
     this.cancelActive(active);
     if (isCurrent && !this.disposed) {
-      this.view.notify(code);
+      this.view.notify(code, active.input);
     }
   }
 

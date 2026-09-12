@@ -230,25 +230,60 @@ function fixture(options: { semanticContext?: boolean; response?: string } = {})
   };
 }
 
-test("unsupported output offers a retry without blaming the selection size", async () => {
+test("unsupported output offers a retry beside the code without blaming the selection size", async () => {
   const app = fixture({ response: "# Unexpected heading" });
   try {
     await app.command("show");
-    assert.deepEqual(app.notifications, [
-      "The model returned an empty or unsupported subtitle. Try again.",
-    ]);
+    assert.equal(app.text, "↳ The model returned an empty or unsupported subtitle. Try again.");
+    assert.deepEqual(app.notifications, []);
   } finally {
     app.dispose();
   }
 });
 
-test("oversized output explains the display limit", async () => {
+test("oversized output explains the display limit beside the code", async () => {
   const app = fixture({ response: "a".repeat(401) });
   try {
     await app.command("show");
-    assert.deepEqual(app.notifications, [
-      "The generated subtitle is too long. Try a smaller selection.",
-    ]);
+    assert.equal(app.text, "↳ The generated subtitle is too long. Try a smaller selection.");
+    assert.deepEqual(app.notifications, []);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("Esc clears an inline failure even though no request is active", async () => {
+  const app = fixture({ response: "a".repeat(401) });
+  try {
+    await app.command("show");
+    assert.notEqual(app.text, "");
+    await app.command("dismiss");
+    assert.equal(app.text, "");
+  } finally {
+    app.dispose();
+  }
+});
+
+test("editing the document clears an inline failure", async () => {
+  const app = fixture({ response: "a".repeat(401) });
+  try {
+    await app.command("show");
+    assert.notEqual(app.text, "");
+    app.document.version++;
+    app.documentChanged.fire({ document: app.document });
+    assert.equal(app.text, "");
+  } finally {
+    app.dispose();
+  }
+});
+
+test("a missing editor still reports the selection failure as a notification", async () => {
+  const app = fixture();
+  try {
+    app.api.window.activeTextEditor = undefined;
+    await app.command("show");
+    assert.equal(app.text, "");
+    assert.equal(app.notifications.length, 1);
   } finally {
     app.dispose();
   }

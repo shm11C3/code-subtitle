@@ -152,6 +152,8 @@ Code Subtitle sends code to a model only after an explicit operation. The first-
 
 Do not provide a custom backend or send telemetry. Do not write prompts, code, subtitles, or URIs to logs, exception messages, or persistent storage. Do not display or record model errors as-is; convert them into the permitted failure categories and brief guidance. The model provider and organization settings control the provider's terms for destinations, retention, training, and billing.
 
+Render guidance the reader can act on inside the editor (`selection`, `inputTooLarge`, `outputInvalid`, `outputTooLong`, `timeout`, `network`) in the same decoration slot at the anchor line using `editorWarning.foreground`, so the eyes stay on the code. It clears after 5 seconds or on selection change, edit, editor switch, `Esc`, or a new request, and keeps the `codeSubtitle.active` context so `Esc` works. Failures that need action outside the editor (`modelUnavailable`, `accessDenied`, `blocked`), or that arrive without a request or editor to anchor to, use a warning notification.
+
 In Restricted Mode, use only the selection and adjacent lines; skip semantic collection. Workspace Trust does not replace consent to send code. Follow VS Code and organization restrictions on model use, and never execute generated results or input comments. Do not convert Markdown into trusted command links. [Workspace Trust guide](https://code.visualstudio.com/api/extension-guides/workspace-trust)
 
 | Failure                                    | Behavior                                                                             |

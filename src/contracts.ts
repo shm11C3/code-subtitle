@@ -59,7 +59,8 @@ export type SubtitlePhase = "preparing" | "streaming" | "visible";
 export interface SubtitleView {
   show(input: SubtitleInput, text: string, phase: SubtitlePhase): void;
   clear(): void;
-  notify(failure: FailureCode): void;
+  /** Report a failure; `input` lets the view place actionable guidance beside the code. */
+  notify(failure: FailureCode, input?: SubtitleInput): void;
 }
 
 export type FailureCode =
