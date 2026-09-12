@@ -65,7 +65,7 @@
     "keybindings": [
       {
         "command": "codeSubtitle.show",
-        "key": "alt+e",
+        "key": "shift+alt+e",
         "mac": "ctrl+alt+e",
         "when": "editorTextFocus && !editorHasMultipleSelections"
       },
