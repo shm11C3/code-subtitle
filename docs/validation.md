@@ -53,7 +53,24 @@ After recovering local disk space, all 84 tests, TypeScript checking, lint, and 
 
 The revised VSIX was packaged and reinstalled in the normal VS Code profile. Installed `policy.js`, `session.js`, `vscode-view.js`, and `extension.js` matched the build byte-for-byte. Local `.claude` worktrees are excluded from the package; the inspected archive contains 15 files (28.3 KB). Reload an existing VS Code window to activate the revision.
 
+## Immediate UX improvements revision
+
+On 2026-09-12, branch `feat/immediate-ux-improvements` (based on local `main` at `32663ae`) added inline failure guidance, a persisted automatic model choice with a `Code Subtitle: Choose Model` command, a current-line fallback for an empty selection, an editor context-menu entry, the `Shift+Alt+E` Windows/Linux shortcut, subtitle persistence when the anchor scrolls out of view, a 10–30 second reading-time display expiry, and neutral progress colors. Each behavior change was driven by a failing test first; see the role-specific TDD notes.
+
+Observed results on macOS arm64 with Node.js 24:
+
+- `npm run check`: passed.
+- `npm run lint`: passed.
+- `npm run fmt:check`: passed.
+- `npm test`: 106 tests passed across policy, cache, session, model adapter, renderer, semantic provider, and event integration.
+- `npm run package`: produced `code-subtitle-0.0.1.vsix` (15 files, 30.1 KB).
+- `npm run test:host`: did not run. VS Code 1.135.0 failed to start because the isolated user-data directory under the agent's checkout produced an IPC socket path longer than 103 characters (`listen EINVAL ... .test-host/user-data-builtin/1.13-main.sock`). Registration of `codeSubtitle.chooseModel`, the context-menu entry, the new keybinding, inline failure rendering, and the current-line fallback therefore remain unverified in a real extension host.
+
+The deterministic tests cover the inline-versus-notification decision and its 5-second clear, stored-choice reuse, stale-ID fallback, explicit-setting precedence, the Choose Model command, cursor-based dismissal of a current-line subtitle, persistence across visible-range changes, the display-expiry boundaries at 10 and 30 seconds on both the streamed and cached paths, and the phase colors. They do not establish on-screen readability of inline guidance, keyboard behavior on Windows/Linux, or live-model behavior.
+
 ## Acceptance still requiring direct observation
+
+- Inline failure guidance readability and the `Shift+Alt+E` binding on Windows/Linux.
 
 - Subtitle readability on long lines, narrow splits, wrapped lines, themes, and zoom.
 - Live-generation command interaction, Undo history, keyboard conflicts and dismissal precedence.
