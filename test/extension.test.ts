@@ -22,8 +22,14 @@ function event<T>() {
 
 /** A VS Code boundary fixture; session, policy, cache, gateway, and view remain real. */
 function fixture(
-  options: { semanticContext?: boolean; response?: string; timingLog?: boolean } = {},
+  options: {
+    semanticContext?: boolean;
+    response?: string;
+    timingLog?: boolean;
+    text?: string;
+  } = {},
 ) {
+  const sourceText = options.text ?? "return value;";
   const directory = options.semanticContext
     ? mkdtempSync(join(tmpdir(), "subtitle-integration-"))
     : undefined;
@@ -63,8 +69,8 @@ function fixture(
     version: 1,
     languageId: "typescript",
     lineCount: 1,
-    getText: () => "return value;",
-    lineAt: () => ({ text: "return value;", range: { end: { line: 0, character: 13 } } }),
+    getText: () => sourceText,
+    lineAt: () => ({ text: sourceText, range: { end: { line: 0, character: sourceText.length } } }),
   };
   const editor = {
     document,
@@ -216,6 +222,7 @@ function fixture(
     channels,
     timingLines,
     selectionChanged,
+    visibleChanged,
     documentChanged,
     foldersChanged,
     rootUri,
@@ -246,25 +253,60 @@ function fixture(
   };
 }
 
-test("unsupported output offers a retry without blaming the selection size", async () => {
+test("unsupported output offers a retry beside the code without blaming the selection size", async () => {
   const app = fixture({ response: "# Unexpected heading" });
   try {
     await app.command("show");
-    assert.deepEqual(app.notifications, [
-      "The model returned an empty or unsupported subtitle. Try again.",
-    ]);
+    assert.equal(app.text, "↳ The model returned an empty or unsupported subtitle. Try again.");
+    assert.deepEqual(app.notifications, []);
   } finally {
     app.dispose();
   }
 });
 
-test("oversized output explains the display limit", async () => {
+test("oversized output explains the display limit beside the code", async () => {
   const app = fixture({ response: "a".repeat(401) });
   try {
     await app.command("show");
-    assert.deepEqual(app.notifications, [
-      "The generated subtitle is too long. Try a smaller selection.",
-    ]);
+    assert.equal(app.text, "↳ The generated subtitle is too long. Try a smaller selection.");
+    assert.deepEqual(app.notifications, []);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("Esc clears an inline failure even though no request is active", async () => {
+  const app = fixture({ response: "a".repeat(401) });
+  try {
+    await app.command("show");
+    assert.notEqual(app.text, "");
+    await app.command("dismiss");
+    assert.equal(app.text, "");
+  } finally {
+    app.dispose();
+  }
+});
+
+test("editing the document clears an inline failure", async () => {
+  const app = fixture({ response: "a".repeat(401) });
+  try {
+    await app.command("show");
+    assert.notEqual(app.text, "");
+    app.document.version++;
+    app.documentChanged.fire({ document: app.document });
+    assert.equal(app.text, "");
+  } finally {
+    app.dispose();
+  }
+});
+
+test("a missing editor still reports the selection failure as a notification", async () => {
+  const app = fixture();
+  try {
+    app.api.window.activeTextEditor = undefined;
+    await app.command("show");
+    assert.equal(app.text, "");
+    assert.equal(app.notifications.length, 1);
   } finally {
     app.dispose();
   }
@@ -511,6 +553,63 @@ test("removing a workspace folder invalidates its completed subtitle", async () 
     assert.equal(app.text, "");
     await app.command("show");
     assert.equal(app.sends, 2);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("an empty selection targets the whole current line", async () => {
+  const app = fixture();
+  try {
+    app.editor.selections = [{ start: { line: 0, character: 5 }, end: { line: 0, character: 5 } }];
+    await app.command("show");
+    assert.equal(app.sends, 1);
+    const prompt = app.prompts[0]!;
+    const data = JSON.parse(prompt.slice(prompt.lastIndexOf("\n") + 1));
+    assert.equal(data.selection, "return value;");
+    assert.equal(app.text, "↳ Returns the current value.");
+    assert.deepEqual(app.notifications, []);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("a current-line subtitle stays while the cursor does not move and clears when it does", async () => {
+  const app = fixture();
+  try {
+    app.editor.selections = [{ start: { line: 0, character: 5 }, end: { line: 0, character: 5 } }];
+    await app.command("show");
+    app.selectionChanged.fire({ textEditor: app.editor });
+    assert.equal(app.text, "↳ Returns the current value.");
+    app.editor.selections = [{ start: { line: 0, character: 7 }, end: { line: 0, character: 7 } }];
+    app.selectionChanged.fire({ textEditor: app.editor });
+    assert.equal(app.text, "");
+  } finally {
+    app.dispose();
+  }
+});
+
+test("a whitespace-only current line reports the selection failure without a request", async () => {
+  const app = fixture({ text: "    " });
+  try {
+    app.editor.selections = [{ start: { line: 0, character: 2 }, end: { line: 0, character: 2 } }];
+    await app.command("show");
+    assert.equal(app.sends, 0);
+    assert.equal(app.text, "");
+    assert.equal(app.notifications.length, 1);
+  } finally {
+    app.dispose();
+  }
+});
+
+test("scrolling the anchor line out of view keeps the subtitle", async () => {
+  const app = fixture();
+  try {
+    app.editor.visibleRanges = [{ start: { line: 40 }, end: { line: 80 } }];
+    await app.command("show");
+    assert.equal(app.text, "↳ Returns the current value.");
+    app.visibleChanged.fire({ textEditor: app.editor });
+    assert.equal(app.text, "↳ Returns the current value.");
   } finally {
     app.dispose();
   }

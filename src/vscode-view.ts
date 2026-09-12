@@ -1,15 +1,42 @@
 import * as vscode from "vscode";
-import type { FailureCode, SubtitleInput, SubtitlePhase, SubtitleView } from "./contracts.js";
+import type {
+  Clock,
+  FailureCode,
+  SubtitleInput,
+  SubtitlePhase,
+  SubtitleView,
+} from "./contracts.js";
 
 export type SubtitleEditorLookup = (input: SubtitleInput) => vscode.TextEditor | undefined;
+export type SubtitleViewTimers = Pick<Clock, "setTimeout" | "clearTimeout">;
+
+/** Failures the reader can act on without leaving the editor are shown beside the code. */
+const INLINE_FAILURES: ReadonlySet<FailureCode> = new Set<FailureCode>([
+  "selection",
+  "inputTooLarge",
+  "outputInvalid",
+  "outputTooLong",
+  "timeout",
+  "network",
+]);
+const FAILURE_DISPLAY_MS = 5_000;
+
+const systemTimers: SubtitleViewTimers = {
+  setTimeout: (callback, delayMs) => globalThis.setTimeout(callback, delayMs),
+  clearTimeout: (handle) => globalThis.clearTimeout(handle as number),
+};
 
 /** Renders one ephemeral subtitle without changing the document. */
 export class VscodeSubtitleView implements SubtitleView {
   private readonly decorationType: vscode.TextEditorDecorationType;
   private currentEditor: vscode.TextEditor | undefined;
+  private failureTimer: unknown;
   private disposed = false;
 
-  constructor(private readonly lookup: SubtitleEditorLookup) {
+  constructor(
+    private readonly lookup: SubtitleEditorLookup,
+    private readonly timers: SubtitleViewTimers = systemTimers,
+  ) {
     this.decorationType = vscode.window.createTextEditorDecorationType({
       rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
       after: {
@@ -23,11 +50,55 @@ export class VscodeSubtitleView implements SubtitleView {
     if (this.disposed) {
       return;
     }
+    this.clearFailureTimer();
+    this.render(input, phaseText(text, phase), phaseColor(phase));
+  }
 
+  clear(): void {
+    this.clearFailureTimer();
+    if (this.currentEditor) {
+      this.currentEditor.setDecorations(this.decorationType, []);
+      this.currentEditor = undefined;
+    }
+    if (!this.disposed) {
+      void vscode.commands.executeCommand("setContext", "codeSubtitle.active", false);
+    }
+  }
+
+  notify(failure: FailureCode, input?: SubtitleInput): void {
+    if (this.disposed) {
+      return;
+    }
+    this.clear();
+    if (
+      input !== undefined &&
+      INLINE_FAILURES.has(failure) &&
+      this.render(input, failureMessage(failure), new vscode.ThemeColor("editorWarning.foreground"))
+    ) {
+      this.failureTimer = this.timers.setTimeout(() => {
+        this.failureTimer = undefined;
+        this.clear();
+      }, FAILURE_DISPLAY_MS);
+      return;
+    }
+    void vscode.window.showWarningMessage(failureMessage(failure));
+  }
+
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.clear();
+    this.disposed = true;
+    this.decorationType.dispose();
+  }
+
+  /** Draw text at the request's anchor line; returns false when no editor or line is available. */
+  private render(input: SubtitleInput, displayText: string, color: vscode.ThemeColor): boolean {
     const editor = this.lookup(input);
     if (!editor) {
       this.clear();
-      return;
+      return false;
     }
 
     if (this.currentEditor && this.currentEditor !== editor) {
@@ -37,11 +108,9 @@ export class VscodeSubtitleView implements SubtitleView {
     const anchor = this.anchor(editor, input.anchorLine);
     if (!anchor) {
       this.clear();
-      return;
+      return false;
     }
 
-    const displayText = phaseText(text, phase);
-    const color = phaseColor(phase);
     const range = new vscode.Range(anchor, anchor);
     editor.setDecorations(this.decorationType, [
       {
@@ -56,30 +125,15 @@ export class VscodeSubtitleView implements SubtitleView {
     ]);
     this.currentEditor = editor;
     void vscode.commands.executeCommand("setContext", "codeSubtitle.active", true);
+    return true;
   }
 
-  clear(): void {
-    if (this.currentEditor) {
-      this.currentEditor.setDecorations(this.decorationType, []);
-      this.currentEditor = undefined;
-    }
-    if (!this.disposed) {
-      void vscode.commands.executeCommand("setContext", "codeSubtitle.active", false);
-    }
-  }
-
-  notify(failure: FailureCode): void {
-    this.clear();
-    void vscode.window.showWarningMessage(failureMessage(failure));
-  }
-
-  dispose(): void {
-    if (this.disposed) {
+  private clearFailureTimer(): void {
+    if (this.failureTimer === undefined) {
       return;
     }
-    this.clear();
-    this.disposed = true;
-    this.decorationType.dispose();
+    this.timers.clearTimeout(this.failureTimer);
+    this.failureTimer = undefined;
   }
 
   private anchor(editor: vscode.TextEditor, line: number): vscode.Position | undefined {
@@ -100,20 +154,18 @@ function phaseText(text: string, phase: SubtitlePhase): string {
   return text;
 }
 
+/** Progress states share a neutral color; `editorWarning.foreground` is reserved for failures. */
 function phaseColor(phase: SubtitlePhase): vscode.ThemeColor {
-  if (phase === "preparing") {
-    return new vscode.ThemeColor("editorWarning.foreground");
+  if (phase === "visible") {
+    return new vscode.ThemeColor("editorHint.foreground");
   }
-  if (phase === "streaming") {
-    return new vscode.ThemeColor("editorCodeLens.foreground");
-  }
-  return new vscode.ThemeColor("editorHint.foreground");
+  return new vscode.ThemeColor("editorCodeLens.foreground");
 }
 
 function failureMessage(failure: FailureCode): string {
   switch (failure) {
     case "selection":
-      return "Select one non-empty range to show a subtitle.";
+      return "Select code, or put the cursor on a non-empty line, to show a subtitle.";
     case "inputTooLarge":
       return "The selection is too large. Narrow it and try again.";
     case "outputInvalid":

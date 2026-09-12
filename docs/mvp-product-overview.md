@@ -24,7 +24,7 @@ Select → shortcut → short subtitle near the end of the selection → continu
 
 Only one subtitle is displayed at a time. A selection alone does not make a request. If a different piece of code is selected while generation is in progress, cancel the active request and clear the subtitle. Do not generate for the new selection until the next explicit action.
 
-Clear the subtitle within at most 10 seconds after generation completes. Clear it first when `Esc` is pressed, the selection changes, the target document is edited, the editor changes, or the target range leaves the viewport. Do not provide history, pinning, or a copy-only UI.
+Clear the subtitle 10 to 30 seconds after generation completes, scaled to the completed text's length (150 ms per visible character) so a long sentence can be read side by side with the code. Clear it first when `Esc` is pressed, the selection changes, the target document is edited, or the editor changes. Scrolling the target out of view does not clear it, because re-reading the top of a long selection is still reading. Do not provide history, pinning, or a copy-only UI.
 
 ## Output contract
 
@@ -45,8 +45,8 @@ Select the most useful responsibility, invariant, failure boundary, or concrete 
 
 | Feature                     | MVP decision                                                                                                          |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| Launch                      | `codeSubtitle.show` command and shortcut; also executable from the Command Palette                                    |
-| Input                       | One non-whitespace-only selection in the regular text editor of desktop VS Code                                       |
+| Launch                      | `codeSubtitle.show` via shortcut (`Shift+Alt+E`, macOS `Ctrl+Alt+E`), the editor context menu, or the Command Palette |
+| Input                       | One non-whitespace-only selection, or the cursor's whole line when the selection is empty, in the desktop text editor |
 | Context                     | Selection, up to five adjacent lines each side, and optional bounded type/docs and one-hop same-workspace definitions |
 | Explanation and translation | Process according to the input in a single request; do not make an additional AI request solely for classification    |
 | Display                     | Aim for one or two lines near the code; use one line rendered with a Decoration as the initial baseline               |
@@ -56,7 +56,7 @@ Select the most useful responsibility, invariant, failure boundary, or concrete 
 | Configuration               | Output-language/model overrides and a semantic-context switch; bounded semantic context is enabled by default         |
 | AI use                      | VS Code Language Model API; no custom API key or custom backend                                                       |
 
-Readability for long lines and narrow split editors is an acceptance criterion for the rendering approach. Do not assume that a stable API can reserve an arbitrary two-line area; perform display validation at the beginning of implementation.
+The Windows/Linux shortcut avoids the `Alt+E` menu-bar mnemonic and has not been verified on real Windows/Linux hardware. Readability for long lines and narrow split editors is an acceptance criterion for the rendering approach. Do not assume that a stable API can reserve an arbitrary two-line area; perform display validation at the beginning of implementation.
 
 ## Excluded
 
@@ -68,7 +68,7 @@ Formal support for Notebooks, the browser version, and Remote environments is ou
 
 Code Subtitle does not require an API key. The standard path requires a Copilot model available through VS Code and permission to use it. On first use, briefly explain the range that will be sent and leave any required consent for model use to VS Code's mechanisms.
 
-If no model is available, consent is denied, the quota is exceeded, or the network is disconnected, briefly state the reason and the next action. Do not automatically retry failures in a way that consumes reading time or quota. Treat cancellation caused by a selection change as normal operation and show no notification.
+If no model is available, consent is denied, the quota is exceeded, or the network is disconnected, briefly state the reason and the next action. Guidance the reader can act on inside the editor (selection, input size, unusable or overlong output, timeout, or a failed request) appears in the subtitle slot beside the code and clears itself after a few seconds; failures that need action outside the editor (no model, access denied, blocked or exhausted quota) use a notification. Do not automatically retry failures in a way that consumes reading time or quota. Treat cancellation caused by a selection change as normal operation and show no notification.
 
 ## Success criteria
 

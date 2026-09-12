@@ -29,7 +29,22 @@ The following public extension flows were exercised with real session, policy, c
 
 A further regression test confirms that a dependency edit during an uncooperative provider request prevents model submission, even after the provider eventually resolves. It passed immediately using the existing cancellation path and is not claimed as a failing-first cycle.
 
-Revision: RED: a repeated command with semantic context enabled re-queried the providers before finding the cached result. GREEN: the cache lookup now precedes evidence collection and token fitting (session cycle 15); the repeated command makes no provider or model request.
+Revision: RED: a repeated command with semantic context enabled re-queried the providers before finding the cached result. GREEN: the cache lookup now precedes evidence collection and token fitting (session cycle 17); the repeated command makes no provider or model request.
+
+## Inline failure guidance
+
+- RED: with the renderer now placing actionable failures beside the code, the extension tests required the unsupported-output and overlong-output cases to appear in the decoration slot without a notification, `Esc` (the `dismiss` command) and a document edit to clear that guidance even though the session holds no active request, and a missing active editor to keep the notification. `dismiss` was a no-op without an active session request.
+- GREEN: `dismissActive` and source invalidation clear the view directly. The existing consent, cancellation, and invalidation regressions are unchanged.
+
+## Current-line fallback
+
+- RED: extension tests required an empty single selection to submit the cursor's whole line, the subtitle to stay while the cursor does not move and clear when it does, and a whitespace-only line to report the selection failure without a request. The first two failed because an empty selection was rejected as a selection error.
+- GREEN: `show` widens an empty single selection to the full line before building the snapshot, and the active request records the original editor selection so selection-change comparisons are made against the cursor rather than the widened range. `createInput` is unchanged, and the keybinding no longer requires `editorHasSelection`.
+
+## Scrolling keeps the subtitle
+
+- RED: an extension test placed the anchor line outside the editor's visible ranges, required the subtitle to render, and required a visible-range change not to clear it. The subtitle was cancelled because `isCurrent` checked visibility and a visible-range handler dismissed it.
+- GREEN: the visible-range handler and the visibility check are removed. Selection change, edit, editor switch, `Esc`, and expiry remain the dismissal triggers.
 
 ## Timing log
 

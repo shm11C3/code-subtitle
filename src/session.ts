@@ -1,4 +1,10 @@
-import { graphemeLength, normalizeOutput, outputLimit, validateOutput } from "./policy.js";
+import {
+  displayTtlMs,
+  graphemeLength,
+  normalizeOutput,
+  outputLimit,
+  validateOutput,
+} from "./policy.js";
 import {
   type Clock,
   type FailureCode,
@@ -14,7 +20,6 @@ import {
 
 const STREAM_BATCH_DELAY_MS = 50;
 const REQUEST_TIMEOUT_MS = 10_000;
-const DISPLAY_TTL_MS = 10_000;
 const MAX_RAW_STREAM_UNITS = 16_000;
 const CANCELLED = Symbol("cancelled");
 
@@ -81,7 +86,7 @@ export class SubtitleSession {
     if (input.selection.trim().length === 0) {
       this.cancelActive();
       this.view.clear();
-      this.view.notify("selection");
+      this.view.notify("selection", input);
       return Promise.resolve();
     }
 
@@ -192,7 +197,7 @@ export class SubtitleSession {
       active.lifecycle = "visible";
       this.view.show(active.input, normalized, "visible");
       this.emit(active, "visible");
-      this.showUntilExpiry(active);
+      this.showUntilExpiry(active, normalized);
       return;
     }
 
@@ -284,7 +289,7 @@ export class SubtitleSession {
     if (active.prepared) {
       this.cache.put(active.prepared, complete);
     }
-    this.showUntilExpiry(active);
+    this.showUntilExpiry(active, complete);
   }
 
   private isValidOutput(text: string, outputLanguage: string): boolean {
@@ -310,7 +315,7 @@ export class SubtitleSession {
     }, STREAM_BATCH_DELAY_MS);
   }
 
-  private showUntilExpiry(active: ActiveRequest): void {
+  private showUntilExpiry(active: ActiveRequest, text: string): void {
     this.clearRequestTimer(active);
     this.clearFlushTimer(active);
     active.expiryTimer = this.clock.setTimeout(() => {
@@ -321,7 +326,7 @@ export class SubtitleSession {
       this.active = undefined;
       this.view.clear();
       this.emit(active, "cleared");
-    }, DISPLAY_TTL_MS);
+    }, displayTtlMs(text));
   }
 
   private startRequestTimer(active: ActiveRequest): void {
@@ -378,7 +383,7 @@ export class SubtitleSession {
     }
     this.cancelActive(active, true);
     if (isCurrent && !this.disposed) {
-      this.view.notify(code);
+      this.view.notify(code, active.input);
     }
   }
 

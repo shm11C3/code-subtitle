@@ -5,6 +5,7 @@ import {
   POLICY_VERSION,
   buildPrompt,
   createInput,
+  displayTtlMs,
   fitInput,
   graphemeLength,
   needsTokenCount,
@@ -34,6 +35,16 @@ test("treats Chinese and Korean like Japanese for the target and the hard limit"
     assert.equal(outputTarget(language), 200, language);
     assert.equal(outputLimit(language), 400, language);
   }
+});
+
+test("scales the display lifetime by grapheme count between 10 and 30 seconds", () => {
+  assert.equal(displayTtlMs(""), 10_000);
+  assert.equal(displayTtlMs("a".repeat(66)), 10_000);
+  assert.equal(displayTtlMs("a".repeat(67)), 10_050);
+  assert.equal(displayTtlMs("あ".repeat(100)), 15_000);
+  assert.equal(displayTtlMs("a".repeat(200)), 30_000);
+  assert.equal(displayTtlMs("a".repeat(400)), 30_000);
+  assert.equal(displayTtlMs("👍🏽".repeat(100)), 15_000);
 });
 
 test("counts grapheme clusters rather than UTF-16 code units", () => {

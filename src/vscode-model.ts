@@ -43,6 +43,12 @@ export interface VscodeModelPicker {
   ): Thenable<ModelPickerItem | undefined>;
 }
 
+/** Remembers the model chosen for `codeSubtitle.model: "auto"` across sessions. */
+export interface ModelChoiceStore {
+  get(): string | undefined;
+  set(id: string | undefined): PromiseLike<void> | void;
+}
+
 export interface VscodeModelGatewayOptions {
   readonly runtime: VscodeModelRuntime;
   readonly access: VscodeModelAccess;
@@ -54,6 +60,7 @@ export interface VscodeModelGatewayOptions {
    * passes nothing; the live evaluation harness uses this for experiments.
    */
   readonly modelOptions?: Record<string, unknown>;
+  readonly choiceStore?: ModelChoiceStore;
 }
 
 /** Adapts the Copilot-only VS Code Language Model API to the core gateway. */
@@ -127,6 +134,27 @@ export class VscodeModelGateway implements ModelGateway {
     this.selectedModel = undefined;
   }
 
+  /**
+   * Re-open the picker regardless of the stored choice and remember the result.
+   * Returns the chosen model ID, or undefined when the user dismissed the picker.
+   */
+  async chooseModel(signal: AbortSignal): Promise<string | undefined> {
+    this.ensureActive();
+    const models = await this.selectModels({ vendor: "copilot" }, signal);
+    if (models.length === 0) {
+      throw new SubtitleErrorClass("modelUnavailable");
+    }
+    const selected = await this.pickModel(models, signal);
+    if (selected === undefined) {
+      return undefined;
+    }
+    await this.rememberChoice(selected.id);
+    if (this.modelSetting === "auto") {
+      this.selectedModel = selected;
+    }
+    return selected.id;
+  }
+
   dispose(): void {
     this.disposed = true;
     this.invalidate();
@@ -154,39 +182,63 @@ export class VscodeModelGateway implements ModelGateway {
         throw new SubtitleErrorClass("modelUnavailable");
       }
     } else {
-      const items = models.map((model) => ({
-        label: model.name || model.id,
-        description: model.id,
-        modelId: model.id,
-      }));
-      const pickerSource = this.options.runtime.createCancellationTokenSource();
-      const stopPicker = bridgeAbort(signal, pickerSource);
-      let choice: ModelPickerItem | undefined;
-      try {
-        choice = await this.options.picker.showQuickPick(
-          items,
-          {
-            canPickMany: false,
-            placeHolder: "Choose a Copilot model for this session",
-            ignoreFocusOut: true,
-          },
-          pickerSource.token,
-        );
-      } finally {
-        stopPicker();
-      }
-      throwIfAborted(signal);
-      if (!choice) {
-        throw abortError();
-      }
-      selected = models.find((model) => model.id === choice.modelId);
+      const stored = this.options.choiceStore?.get();
+      selected = stored === undefined ? undefined : models.find((model) => model.id === stored);
       if (!selected) {
-        throw new SubtitleErrorClass("modelUnavailable");
+        selected = await this.pickModel(models, signal);
+        if (!selected) {
+          throw abortError();
+        }
+        await this.rememberChoice(selected.id);
       }
     }
 
     this.selectedModel = selected;
     return selected;
+  }
+
+  private async pickModel(
+    models: vscode.LanguageModelChat[],
+    signal: AbortSignal,
+  ): Promise<vscode.LanguageModelChat | undefined> {
+    const items = models.map((model) => ({
+      label: model.name || model.id,
+      description: model.id,
+      modelId: model.id,
+    }));
+    const pickerSource = this.options.runtime.createCancellationTokenSource();
+    const stopPicker = bridgeAbort(signal, pickerSource);
+    let choice: ModelPickerItem | undefined;
+    try {
+      choice = await this.options.picker.showQuickPick(
+        items,
+        {
+          canPickMany: false,
+          placeHolder: "Choose a Copilot model for Code Subtitle",
+          ignoreFocusOut: true,
+        },
+        pickerSource.token,
+      );
+    } finally {
+      stopPicker();
+    }
+    throwIfAborted(signal);
+    if (!choice) {
+      return undefined;
+    }
+    const selected = models.find((model) => model.id === choice.modelId);
+    if (!selected) {
+      throw new SubtitleErrorClass("modelUnavailable");
+    }
+    return selected;
+  }
+
+  private async rememberChoice(id: string): Promise<void> {
+    try {
+      await this.options.choiceStore?.set(id);
+    } catch {
+      // A failed write only means the picker appears again after a restart.
+    }
   }
 
   private async selectModels(

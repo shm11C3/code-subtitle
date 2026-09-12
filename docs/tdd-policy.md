@@ -78,6 +78,12 @@ RED: Boundary tests required output at exactly 200 Japanese graphemes and 400 no
 
 GREEN: `validateOutput` enforces the inclusive hard caps with grapheme counting and allows inline backticks and emphasis as literal text. `buildPrompt` asks for about `outputTarget` graphemes, communicates the `outputLimit` hard cap, and keeps the one-sentence requirement. `POLICY_VERSION` is `4` so cached responses use the revised output contract.
 
+## Reading-time display expiry
+
+RED: A test required `displayTtlMs` to return 10,000 ms for empty and short text, 10,050 ms at 67 graphemes, 15,000 ms at 100 graphemes (including emoji sequences counted as one grapheme each), and 30,000 ms at 200 graphemes and beyond. The helper did not exist.
+
+GREEN: `displayTtlMs` multiplies the grapheme count by 150 ms and clamps the result to 10–30 seconds. It is a pure function shared with the session so the display lifetime and the output limits use the same grapheme counting.
+
 ## CJK output limit cycle
 
 RED: A new test required `zh`, `zh-*`, `ko`, and `ko-*` tags to share the Japanese 100-grapheme target and 200-grapheme hard limit while `zu`, `kok`, `jav`, and `auto` kept 200/400. It failed because only `ja` matched the dense-script pattern.

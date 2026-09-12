@@ -53,6 +53,21 @@ After recovering local disk space, all 84 tests, TypeScript checking, lint, and 
 
 The revised VSIX was packaged and reinstalled in the normal VS Code profile. Installed `policy.js`, `session.js`, `vscode-view.js`, and `extension.js` matched the build byte-for-byte. Local `.claude` worktrees are excluded from the package; the inspected archive contains 15 files (28.3 KB). Reload an existing VS Code window to activate the revision.
 
+## Immediate UX improvements revision
+
+On 2026-09-12, branch `feat/immediate-ux-improvements` (based on local `main` at `32663ae`) added inline failure guidance, a persisted automatic model choice with a `Code Subtitle: Choose Model` command, a current-line fallback for an empty selection, an editor context-menu entry, the `Shift+Alt+E` Windows/Linux shortcut, subtitle persistence when the anchor scrolls out of view, a 10–30 second reading-time display expiry, and neutral progress colors. Each behavior change was driven by a failing test first; see the role-specific TDD notes.
+
+Observed results on macOS arm64 with Node.js 24:
+
+- `npm run check`: passed.
+- `npm run lint`: passed.
+- `npm run fmt:check`: passed.
+- `npm test`: 106 tests passed across policy, cache, session, model adapter, renderer, semantic provider, and event integration.
+- `npm run package`: produced `code-subtitle-0.0.1.vsix` (15 files, 30.1 KB).
+- `npm run test:host`: passed on the branch head (`84fb9b0`) with VS Code 1.135.0 in builtin mode when launched with the same arguments from a short profile path (`/private/tmp/cs-host-a`). The renderer smoke, activation and registration of all four commands including `codeSubtitle.chooseModel`, the cross-file semantic smoke, and the builtin semantic host smoke passed with no model requests. Launching from the agent worktree itself failed before startup because the isolated user-data directory produced an IPC socket path longer than 103 characters (`listen EINVAL ... .test-host/user-data-builtin/1.13-main.sock`); letting `scripts/test-host.cjs` take the profile location from an environment variable is a follow-up. On-screen rendering of inline failure guidance, the context-menu entry, and the new keybinding remain unverified by direct observation.
+
+The deterministic tests cover the inline-versus-notification decision and its 5-second clear, stored-choice reuse, stale-ID fallback, explicit-setting precedence, the Choose Model command, cursor-based dismissal of a current-line subtitle, persistence across visible-range changes, the display-expiry boundaries at 10 and 30 seconds on both the streamed and cached paths, and the phase colors. They do not establish on-screen readability of inline guidance, keyboard behavior on Windows/Linux, or live-model behavior.
+
 ## Quality and speed revision
 
 Prompt policy version `5` selects calibration examples by `languageId` (Rust, Go, Python, and a TypeScript fallback) and applies the Japanese output limits to Chinese and Korean; the zh/ko limits are an unvalidated extrapolation. The session now checks the cache before semantic collection and token fitting, `fitInput` skips `countTokens` while the prompt's UTF-8 byte length fits the budget, an opt-in `codeSubtitle.timingLog` setting records content-free phase timings, and `npm run eval:live` provides a live evaluation harness for the output-quality cases.
@@ -61,7 +76,11 @@ On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 99 test
 
 `npm run eval:live` was run once in a fresh profile with no Copilot extension: it printed the "No Copilot model is available in the evaluation profile" guidance, wrote no results file, and exited with code 1. No live model request was made; the harness has not been run against a signed-in Copilot profile, so the recorded outputs, the effect of language-aware examples, the zh/ko limits, and any `modelOptions` experiment remain unevaluated.
 
+After merging `main` with the immediate UX improvements into this branch, the conflicting additions were combined (inline failure guidance keeps the request input while the observer reports the failure; the reading-time expiry and the `cleared` event share `showUntilExpiry`). On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 121 tests, and `npm run package` passed on the merged tree, and the extension-host smoke passed again from a short profile path.
+
 ## Acceptance still requiring direct observation
+
+- Inline failure guidance readability and the `Shift+Alt+E` binding on Windows/Linux.
 
 - Subtitle readability on long lines, narrow splits, wrapped lines, themes, and zoom.
 - Live-generation command interaction, Undo history, keyboard conflicts and dismissal precedence.

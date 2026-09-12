@@ -22,8 +22,8 @@ The package uses a local placeholder publisher. It has not been published to a m
 
 ## Example flow
 
-1. Select the code or comment you want to understand.
-2. Run `Code Subtitle: Show Subtitle`. Default shortcuts are `Alt+E` on Windows/Linux and `Ctrl+Alt+E` on macOS. Customize them in VS Code's Keyboard Shortcuts editor to suit your keyboard layout and existing bindings.
+1. Select the code or comment you want to understand, or just leave the cursor on the line in question.
+2. Run `Code Subtitle: Show Subtitle` from the shortcut, the editor's right-click context menu, or the Command Palette. Default shortcuts are `Shift+Alt+E` on Windows/Linux and `Ctrl+Alt+E` on macOS. The Windows/Linux key avoids the menu-bar mnemonic `Alt+E` (Edit menu) but has not been verified on real Windows/Linux hardware. Customize them in VS Code's Keyboard Shortcuts editor to suit your keyboard layout and existing bindings.
 3. A short subtitle streams in near the end of the selection.
 4. The subtitle disappears when you continue reading and change the selection. Pressing `Esc` while it is visible also dismisses it.
 
@@ -56,11 +56,11 @@ These are examples of displayed content. The extension does not insert into or r
 
 | Included                         | Policy                                                                                                            |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Selection → shortcut → subtitle  | Generate only after an explicit action; target one selection                                                      |
+| Selection → shortcut → subtitle  | Generate only after an explicit action; target one selection, or the cursor's line when nothing is selected       |
 | Short explanation or translation | Surface one grounded engineering insight for code; translate comments while preserving their meaning              |
 | One or two lines near the code   | The MVP baseline is one line rendered with a Decoration; decide whether to use two lines after display validation |
 | Streaming                        | Start displaying from the first content instead of waiting for the full response                                  |
-| Temporary subtitle               | Clear it on selection change, edit, editor switch, `Esc`, or expiry                                               |
+| Temporary subtitle               | Clear it on selection change, edit, editor switch, `Esc`, or expiry (10–30 s, scaled to the text length)          |
 | Cancellation and reuse           | Cancel old requests and use a short-lived, workspace-scoped memory cache                                          |
 | Minimal configuration            | Use automatic output language and automatic model selection by default                                            |
 
@@ -76,7 +76,7 @@ For Japanese, Chinese, and Korean, the default target is one sentence within 100
 
 ## Technical direction and usage assumptions
 
-The extension uses TypeScript and stable VS Code APIs, and sends requests through the VS Code Language Model API. Subtitles use Text Editor Decorations without source-editing APIs. Each request has a cancellation signal and an identifier so that late responses after cancellation are discarded. In this preview, automatic model selection uses a one-time picker of available Copilot models; no unmeasured speed ranking is assumed.
+The extension uses TypeScript and stable VS Code APIs, and sends requests through the VS Code Language Model API. Subtitles use Text Editor Decorations without source-editing APIs. Each request has a cancellation signal and an identifier so that late responses after cancellation are discarded. In this preview, automatic model selection shows a picker of available Copilot models once and remembers the choice across VS Code restarts (re-validated against the available models, and changeable with `Code Subtitle: Choose Model`); no unmeasured speed ranking is assumed.
 
 “No API key required” means that Code Subtitle does not require registration of its own API key. The standard MVP path is a GitHub Copilot-provided model available in VS Code, so usage permission, sign-in, initial consent for the extension, and an available quota may be required. This does not promise unconditional free use or offline operation. [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/ai/language-model)
 

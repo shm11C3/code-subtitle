@@ -4,6 +4,7 @@ import type * as vscode from "vscode";
 import type { SubtitleInput } from "../src/contracts.js";
 import {
   VscodeModelGateway,
+  type ModelChoiceStore,
   type ModelPickerItem,
   type VscodeModelGatewayOptions,
 } from "../src/vscode-model.js";
@@ -506,4 +507,138 @@ test("a stream model-not-found invalidates the selection before the next prepare
   catalog = [replacementModel];
   const second = await gateway.prepare(createInput(), new AbortController().signal);
   assert.equal(second.model.id, "replacement-model");
+});
+
+function createChoiceStore(initial?: string): ModelChoiceStore & { readonly writes: unknown[] } {
+  let stored = initial;
+  const writes: unknown[] = [];
+  return {
+    writes,
+    get: () => stored,
+    set: async (id) => {
+      stored = id;
+      writes.push(id);
+    },
+  };
+}
+
+function createCatalog(ids: string[]): vscode.LanguageModelChat[] {
+  return ids.map((id) =>
+    createModel(
+      id,
+      (async function* () {
+        yield "ok";
+      })(),
+      { countTokens: [], sendRequests: [] },
+    ),
+  );
+}
+
+test("a stored automatic choice is reused across gateways without the picker", async () => {
+  const [model] = createCatalog(["remembered-model"]);
+  let picks = 0;
+  const store = createChoiceStore("remembered-model");
+  const gateway = new VscodeModelGateway({
+    ...createOptions(model!, [], undefined, "auto", {
+      showQuickPick: async () => {
+        picks += 1;
+        return undefined;
+      },
+    }),
+    choiceStore: store,
+  });
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+  assert.equal(prepared.model.id, "remembered-model");
+  assert.equal(picks, 0);
+  assert.deepEqual(store.writes, []);
+});
+
+test("a stale stored choice falls back to the picker and is overwritten", async () => {
+  const [model] = createCatalog(["current-model"]);
+  let picks = 0;
+  const store = createChoiceStore("retired-model");
+  const gateway = new VscodeModelGateway({
+    ...createOptions(model!, [], undefined, "auto", {
+      showQuickPick: async (items) => {
+        picks += 1;
+        return items[0];
+      },
+    }),
+    choiceStore: store,
+  });
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+  assert.equal(prepared.model.id, "current-model");
+  assert.equal(picks, 1);
+  assert.deepEqual(store.writes, ["current-model"]);
+  assert.equal(store.get(), "current-model");
+});
+
+test("an explicit model setting bypasses the stored automatic choice", async () => {
+  const [model] = createCatalog(["exact-model"]);
+  let picks = 0;
+  const store = createChoiceStore("remembered-model");
+  const gateway = new VscodeModelGateway({
+    ...createOptions(model!, [], undefined, "exact-model", {
+      showQuickPick: async () => {
+        picks += 1;
+        return undefined;
+      },
+    }),
+    choiceStore: store,
+  });
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+  assert.equal(prepared.model.id, "exact-model");
+  assert.equal(picks, 0);
+  assert.deepEqual(store.writes, []);
+});
+
+test("choosing a model explicitly reopens the picker and updates the stored choice", async () => {
+  const catalog = createCatalog(["first-model", "second-model"]);
+  let picks = 0;
+  const store = createChoiceStore("first-model");
+  const base = createOptions(catalog[0]!, [], undefined, "auto", {
+    showQuickPick: async (items) => {
+      picks += 1;
+      return items[1];
+    },
+  });
+  const gateway = new VscodeModelGateway({
+    ...base,
+    runtime: { ...base.runtime, selectChatModels: async () => catalog },
+    choiceStore: store,
+  });
+
+  const chosen = await gateway.chooseModel(new AbortController().signal);
+  assert.equal(chosen, "second-model");
+  assert.equal(picks, 1);
+  assert.deepEqual(store.writes, ["second-model"]);
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+  assert.equal(prepared.model.id, "second-model");
+  assert.equal(picks, 1);
+});
+
+test("a model catalog change keeps the stored choice and revalidates it silently", async () => {
+  const [model] = createCatalog(["remembered-model"]);
+  let picks = 0;
+  const store = createChoiceStore("remembered-model");
+  const gateway = new VscodeModelGateway({
+    ...createOptions(model!, [], undefined, "auto", {
+      showQuickPick: async () => {
+        picks += 1;
+        return undefined;
+      },
+    }),
+    choiceStore: store,
+  });
+
+  await gateway.prepare(createInput(), new AbortController().signal);
+  gateway.invalidate();
+  const again = await gateway.prepare(createInput(), new AbortController().signal);
+  assert.equal(again.model.id, "remembered-model");
+  assert.equal(picks, 0);
+  assert.equal(store.get(), "remembered-model");
 });
