@@ -51,9 +51,9 @@ Use for the cache the same input that is actually sent after applying the limits
 
 Obtain models with `vscode.lm.selectChatModels`, build the instruction and target data with `LanguageModelChatMessage.User`, and pass them to `model.sendRequest(messages, options, token)`. The MVP uses text responses only. Do not communicate directly with a custom API or allow the model to execute tools. [Language Model API guide](https://code.visualstudio.com/api/extension-guides/ai/language-model)
 
-The MVP's default provider is `vendor: 'copilot'`. For automatic selection, use the priority order of candidates evaluated during implementation with the same short-text evaluation. Do not assume that the first enumerated model is the fastest or that the selection in the Chat screen can be retrieved unchanged. If no compatible candidate is available, ask the user once to choose from the available models of the same provider. Do not silently switch to another provider.
+The MVP's default provider is `vendor: 'copilot'`. For automatic selection, use the priority order of candidates evaluated during implementation with the same short-text evaluation. Do not assume that the first enumerated model is the fastest or that the selection in the Chat screen can be retrieved unchanged. If no compatible candidate is available, ask the user once to choose from the available models of the same provider and remember the chosen ID in extension global state (`codeSubtitle.autoModelId`) so the picker does not return after a restart. Do not silently switch to another provider.
 
-Do not make a particular model name or speed a permanent assumption. Reuse the selected model, and invalidate it when `lm.onDidChangeChatModels` fires or an unavailable-model failure occurs. If the selected model disappears, show brief guidance and select again on the next explicit operation. [Model selection API](https://code.visualstudio.com/api/references/vscode-api#lm)
+Do not make a particular model name or speed a permanent assumption. Reuse the selected model, and invalidate the in-memory selection when `lm.onDidChangeChatModels` fires or an unavailable-model failure occurs; the stored ID is kept and re-validated against the available models on the next resolve. If the stored model is no longer available, show the picker again and overwrite the stored ID. An explicit `codeSubtitle.model` ID bypasses the stored choice. [Model selection API](https://code.visualstudio.com/api/references/vscode-api#lm)
 
 Even a route that does not require an API key may require VS Code sign-in, model-use permission, consent for the extension, and available quota. Start model retrieval from a user operation. On first use, briefly explain what will be submitted and leave consent for model use to VS Code's standard flow. Do not add a duplicate confirmation of your own; if consent is refused, do not submit.
 
@@ -138,11 +138,11 @@ Disk persistence is outside the MVP. If it is considered later, decide separatel
 | Proposed setting              | Default | Description                                                              |
 | ----------------------------- | ------- | ------------------------------------------------------------------------ |
 | `codeSubtitle.outputLanguage` | `auto`  | Uses `vscode.env.language`; can be overridden with any language tag      |
-| `codeSubtitle.model`          | `auto`  | Automatic selection within the default provider or an available model ID |
+| `codeSubtitle.model`          | `auto`  | Remembered choice within the default provider or an available model ID   |
 
 Do not make API keys, longer output, display method, context-line count, cache expiration, temperature, or similar items MVP settings. Treat output language and model as user settings so that repository settings cannot change them unintentionally.
 
-The primary command is `codeSubtitle.show` (Show Subtitle). Also provide `codeSubtitle.dismiss` (Dismiss Subtitle) and `codeSubtitle.clearCache` (Clear Cache). The proposed shortcuts are Windows/Linux `Alt+E` and macOS `Ctrl+Alt+E`. Allow changes through the standard keybinding feature and test conflicts with IME, AltGr, accent input, and existing commands.
+The primary command is `codeSubtitle.show` (Show Subtitle). Also provide `codeSubtitle.dismiss` (Dismiss Subtitle), `codeSubtitle.clearCache` (Clear Cache), and `codeSubtitle.chooseModel` (Choose Model), which re-opens the model picker and updates the remembered automatic choice without editing settings. The proposed shortcuts are Windows/Linux `Alt+E` and macOS `Ctrl+Alt+E`. Allow changes through the standard keybinding feature and test conflicts with IME, AltGr, accent input, and existing commands.
 
 Limit the `Esc` binding by subtitle state and editor focus, and confirm its priority against the existing behavior that closes completion candidates or other input UI. Do not build a custom detail panel or settings wizard.
 

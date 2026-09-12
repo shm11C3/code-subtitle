@@ -46,6 +46,11 @@
         "command": "codeSubtitle.clearCache",
         "title": "Clear Cache",
         "category": "Code Subtitle"
+      },
+      {
+        "command": "codeSubtitle.chooseModel",
+        "title": "Choose Model",
+        "category": "Code Subtitle"
       }
     ],
     "keybindings": [
@@ -74,7 +79,7 @@
           "type": "string",
           "default": "auto",
           "scope": "application",
-          "description": "Copilot model ID, or auto to select an available model for this session."
+          "description": "Copilot model ID, or auto to use the model chosen once with Code Subtitle: Choose Model and remembered across restarts."
         },
         "codeSubtitle.semanticContext": {
           "type": "boolean",

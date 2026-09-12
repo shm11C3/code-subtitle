@@ -76,7 +76,7 @@ For Japanese, the default target is one sentence within 100 grapheme clusters, w
 
 ## Technical direction and usage assumptions
 
-The extension uses TypeScript and stable VS Code APIs, and sends requests through the VS Code Language Model API. Subtitles use Text Editor Decorations without source-editing APIs. Each request has a cancellation signal and an identifier so that late responses after cancellation are discarded. In this preview, automatic model selection uses a one-time picker of available Copilot models; no unmeasured speed ranking is assumed.
+The extension uses TypeScript and stable VS Code APIs, and sends requests through the VS Code Language Model API. Subtitles use Text Editor Decorations without source-editing APIs. Each request has a cancellation signal and an identifier so that late responses after cancellation are discarded. In this preview, automatic model selection shows a picker of available Copilot models once and remembers the choice across VS Code restarts (re-validated against the available models, and changeable with `Code Subtitle: Choose Model`); no unmeasured speed ranking is assumed.
 
 “No API key required” means that Code Subtitle does not require registration of its own API key. The standard MVP path is a GitHub Copilot-provided model available in VS Code, so usage permission, sign-in, initial consent for the extension, and an available quota may be required. This does not promise unconditional free use or offline operation. [VS Code Language Model API](https://code.visualstudio.com/api/extension-guides/ai/language-model)
 

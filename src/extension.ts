@@ -3,11 +3,16 @@ import { createInput, fitInput, type InputSnapshot } from "./policy.js";
 import { SubtitleError, type SelectionRange, type SubtitleInput } from "./contracts.js";
 import { MemorySubtitleCache } from "./cache.js";
 import { SubtitleSession } from "./session.js";
-import { VscodeModelGateway, type VscodeModelGatewayOptions } from "./vscode-model.js";
+import {
+  VscodeModelGateway,
+  type ModelChoiceStore,
+  type VscodeModelGatewayOptions,
+} from "./vscode-model.js";
 import { VscodeSubtitleView } from "./vscode-view.js";
 import { VscodeSemanticContextProvider } from "./vscode-semantic.js";
 
 const DISCLOSURE_KEY = "codeSubtitle.semanticContextDisclosureShown";
+const AUTO_MODEL_KEY = "codeSubtitle.autoModelId";
 
 interface ActiveRequest {
   readonly input: SubtitleInput;
@@ -78,12 +83,17 @@ export function activate(context: vscode.ExtensionContext): void {
     userMessage: (content) => vscode.LanguageModelChatMessage.User(content),
     createCancellationTokenSource: () => new vscode.CancellationTokenSource(),
   };
+  const choiceStore: ModelChoiceStore = {
+    get: () => context.globalState.get<string>(AUTO_MODEL_KEY),
+    set: (id) => context.globalState.update(AUTO_MODEL_KEY, id),
+  };
   const gateway = new VscodeModelGateway({
     runtime,
     access: context.languageModelAccessInformation,
     picker: {
       showQuickPick: (items, options, token) => vscode.window.showQuickPick(items, options, token),
     },
+    choiceStore,
     fitInput: async (input, countTokens, maxTokens, signal) => {
       const enriched = semanticEnabled()
         ? { ...input, semanticContext: await semanticProvider.collect(input, signal) }
@@ -186,6 +196,27 @@ export function activate(context: vscode.ExtensionContext): void {
     await session.show(input);
   };
 
+  const chooseModel = async (): Promise<void> => {
+    let chosen: string | undefined;
+    try {
+      chosen = await gateway.chooseModel(new AbortController().signal);
+    } catch (error: unknown) {
+      view.notify(error instanceof SubtitleError ? error.code : "modelUnavailable");
+      return;
+    }
+    if (chosen === undefined) {
+      return;
+    }
+    // Results from the previous model are no longer reused, as with a model setting change.
+    activeRequest = undefined;
+    session.clearCache();
+    if (modelSetting() !== "auto") {
+      void vscode.window.showInformationMessage(
+        "Code Subtitle remembered the model, but the codeSubtitle.model setting takes precedence until it is set to auto.",
+      );
+    }
+  };
+
   const commands = [
     vscode.commands.registerCommand("codeSubtitle.show", show),
     vscode.commands.registerCommand("codeSubtitle.dismiss", dismissActive),
@@ -193,6 +224,7 @@ export function activate(context: vscode.ExtensionContext): void {
       activeRequest = undefined;
       session.clearCache();
     }),
+    vscode.commands.registerCommand("codeSubtitle.chooseModel", chooseModel),
   ];
   context.subscriptions.push(...commands);
 
