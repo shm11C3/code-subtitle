@@ -154,14 +154,12 @@ function phaseText(text: string, phase: SubtitlePhase): string {
   return text;
 }
 
+/** Progress states share a neutral color; `editorWarning.foreground` is reserved for failures. */
 function phaseColor(phase: SubtitlePhase): vscode.ThemeColor {
-  if (phase === "preparing") {
-    return new vscode.ThemeColor("editorWarning.foreground");
+  if (phase === "visible") {
+    return new vscode.ThemeColor("editorHint.foreground");
   }
-  if (phase === "streaming") {
-    return new vscode.ThemeColor("editorCodeLens.foreground");
-  }
-  return new vscode.ThemeColor("editorHint.foreground");
+  return new vscode.ThemeColor("editorCodeLens.foreground");
 }
 
 function failureMessage(failure: FailureCode): string {

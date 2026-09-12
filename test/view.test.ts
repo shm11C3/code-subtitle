@@ -169,3 +169,13 @@ test("clearing the view cancels a pending failure timer", () => {
   assert.equal(app.pendingTimers(), 0);
   assert.equal(app.decoration, undefined);
 });
+
+test("preparing and streaming share a neutral color and only failures use the warning color", () => {
+  const app = fixture();
+  app.view.show(createInput(), "", "preparing");
+  assert.deepEqual(app.decoration, { text: "↳ Generating…", color: "editorCodeLens.foreground" });
+  app.view.show(createInput(), "Partial", "streaming");
+  assert.deepEqual(app.decoration, { text: "↳ Partial …", color: "editorCodeLens.foreground" });
+  app.view.show(createInput(), "Complete.", "visible");
+  assert.deepEqual(app.decoration, { text: "↳ Complete.", color: "editorHint.foreground" });
+});

@@ -29,3 +29,9 @@ GREEN: `VscodeSubtitleView` accepts optional timers, renders inline failures thr
 RED: New adapter tests required a stored automatic choice to be reused without the picker, a stale stored ID to fall back to the picker and be overwritten, an explicit `codeSubtitle.model` ID to bypass the store, a catalog invalidation to keep and re-validate the stored ID silently, and an explicit `chooseModel` call to re-open the picker and update the store. Type checking failed because the gateway had no `choiceStore` option or `chooseModel` method.
 
 GREEN: `resolveModel` consults the store before the picker in `auto` mode and writes the chosen ID after a pick; a failed write is ignored so a request never fails because persistence did. `chooseModel` lists Copilot models, shows the picker, stores the choice, and adopts it immediately when the setting is `auto`. The extension registers `codeSubtitle.chooseModel`, clears cached results after a change as it does for a setting change, and notes when an explicit setting still takes precedence. `npm test` passes.
+
+## Neutral progress colors
+
+RED: A renderer test required preparing and streaming to use `editorCodeLens.foreground`, the completed subtitle to use `editorHint.foreground`, and the texts "Generating…", a trailing " …", and plain text to keep the states distinguishable without color. Preparing used `editorWarning.foreground`, so a normal state looked like an error.
+
+GREEN: `phaseColor` reserves the warning color for inline failure guidance and gives both progress phases the CodeLens color. `npm test` passes.
