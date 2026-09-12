@@ -23,11 +23,13 @@ The core and adapter tests use Node's built-in test runner. Provider streams and
 npm run test:host
 ```
 
-The runner defaults to the standard macOS VS Code executable. Set `VSCODE_EXECUTABLE` to a desktop VS Code executable on other systems. It uses an isolated `.test-host` profile and extension directory. The production renderer displays synthetic text and checks that the source, document version, dirty state, active editor, and selection are unchanged. It makes no model requests.
+The runner defaults to the standard macOS VS Code executable. Set `VSCODE_EXECUTABLE` to a desktop VS Code executable on other systems. It uses an isolated `.test-host` profile and extension directory; set `CODE_SUBTITLE_TEST_HOST_ROOT` to a short temporary path when the host's IPC socket path would otherwise be too long. The production renderer displays synthetic text and checks that the source, document version, dirty state, active editor, and selection are unchanged. It makes no model requests.
 
 The same host also exercises real TypeScript provider commands and the semantic collector. Run `CODE_SUBTITLE_SEMANTIC_HOST=native npm run test:host` to check TypeScript 7 (tsgo) using an installed native extension copied into the isolated profile. See [Semantic host validation](semantic-host-validation.md) for setup and coverage.
 
-For a visual inspection, set `CODE_SUBTITLE_VISUAL_CHECK=1` when running the command. Use the **Next** and **Finish** notification buttons to inspect the normal, long-line, and split-editor scenarios. This fixture is excluded from the VSIX.
+The host also opens a synthetic diff and renders a subtitle on the modified side. It defaults to side-by-side mode; run `CODE_SUBTITLE_DIFF_MODE=inline npm run test:host` for inline mode. The diff fixture uses only local `file:` URIs. `git:`, `pr:`, and `vscode-vfs:` review URIs are covered by node tests and intentionally skip semantic providers.
+
+For a visual inspection, set `CODE_SUBTITLE_VISUAL_CHECK=1` when running the command. Use the **Next** and **Finish** notification buttons to inspect the normal, long-line, split-editor, and synthetic diff scenarios. Add `CODE_SUBTITLE_DIFF_MODE=inline` to inspect inline diff mode. This fixture is excluded from the VSIX.
 
 macOS limits Unix socket paths to 103 characters and VS Code keeps its IPC socket under the user data directory, so a deep checkout (for example a git worktree) can fail with `listen EINVAL`. Set `CODE_SUBTITLE_HOST_ROOT` to a short directory to place `.test-host` and `.eval-host` there instead of the repository root.
 
@@ -49,6 +51,6 @@ Set `codeSubtitle.timingLog` to `true` to record phase timings for each subtitle
 
 ## Manual acceptance
 
-Record the host version and platform. Check normal and long lines, narrow split editors, wrapping, light/dark/high-contrast themes, zoom, existing line-end decorations, and keyboard dismissal precedence. Check document content, dirty state, and Undo history before and after real command use.
+Record the host version and platform. Check normal and long lines, narrow split editors, wrapping, side-by-side and inline diffs, light/dark/high-contrast themes, zoom, existing line-end decorations, and keyboard dismissal precedence. Check document content, dirty state, and Undo history before and after real command use. For diff editors, verify the subtitle stays on the changed side and disappears when the active selection/editor changes.
 
 Use public or synthetic code for semantic and timing evaluation. Evaluate code purpose, uncertain intent, comment negation, and conditions separately. A passing automated test does not establish translation accuracy, screenshot readability, screen-reader support, or time to first useful explanation. Do not turn unmeasured performance targets into release claims.

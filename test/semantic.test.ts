@@ -182,6 +182,29 @@ function createRuntime(
   };
 }
 
+for (const scheme of ["git", "pr", "vscode-vfs"]) {
+  test(`skips semantic providers for ${scheme}: review URIs`, async () => {
+    const commands: string[] = [];
+    const provider = new VscodeSemanticContextProvider(
+      createRuntime({
+        sourceUri: TestUri.parse(`${scheme}://review/example.ts`),
+        onCommand: (name) => commands.push(name),
+      }),
+    );
+
+    const context = await provider.collect(
+      createInput({
+        documentUri: `${scheme}://review/example.ts`,
+        workspaceId: undefined,
+      }),
+      new AbortController().signal,
+    );
+
+    assert.deepEqual(context, { entries: [], dependencies: [] });
+    assert.deepEqual(commands, []);
+  });
+}
+
 test("collects hover evidence without exposing URI metadata", async () => {
   const provider = new VscodeSemanticContextProvider(
     createRuntime({
