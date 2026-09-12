@@ -4,6 +4,7 @@ import { SubtitleError, type SubtitleInput } from "../src/contracts.js";
 import {
   buildPrompt,
   createInput,
+  displayTtlMs,
   fitInput,
   graphemeLength,
   normalizeOutput,
@@ -21,6 +22,16 @@ test("uses separate language-specific output targets and hard limits", () => {
   assert.equal(outputTarget("en-US"), 200);
   assert.equal(outputLimit("ja-JP"), 200);
   assert.equal(outputLimit("en-US"), 400);
+});
+
+test("scales the display lifetime by grapheme count between 10 and 30 seconds", () => {
+  assert.equal(displayTtlMs(""), 10_000);
+  assert.equal(displayTtlMs("a".repeat(66)), 10_000);
+  assert.equal(displayTtlMs("a".repeat(67)), 10_050);
+  assert.equal(displayTtlMs("あ".repeat(100)), 15_000);
+  assert.equal(displayTtlMs("a".repeat(200)), 30_000);
+  assert.equal(displayTtlMs("a".repeat(400)), 30_000);
+  assert.equal(displayTtlMs("👍🏽".repeat(100)), 15_000);
 });
 
 test("counts grapheme clusters rather than UTF-16 code units", () => {

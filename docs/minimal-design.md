@@ -37,7 +37,7 @@ flowchart TD
 
 When `codeSubtitle.show` runs, read `window.activeTextEditor`, `editor.selections`, and `document.getText(selection)`. Snapshot the editor reference, document URI, `document.version`, normalized range, `languageId`, output language, and request ID. The URI and version are for local control only; do not send them to the model. [TextEditor API](https://code.visualstudio.com/api/references/vscode-api#TextEditor)
 
-- The target is one non-empty selection. Do not submit when there are multiple selections, the selection contains only whitespace, or there is no editor; show brief guidance instead.
+- The target is one selection. When the only selection is empty, treat the cursor's whole line as the target; the request is still explicit. Do not submit when there are multiple selections, the target contains only whitespace, or there is no editor; show brief guidance instead. Compare later selection changes against the editor's original (possibly empty) selection, not the widened range.
 - Limit the selection to 80 actually selected lines and 8,000 UTF-16 code units, matching VS Code's text offsets. If it exceeds either limit, do not silently truncate it; ask the user to narrow the range.
 - Use up to 5 whole lines immediately before and after the selected lines in the same document, with a total maximum of 2,000 UTF-16 code units. Exclude the farthest whole lines first, removing the preceding line first when distances tie, and keep the selection itself. Unselected prefixes and suffixes on the selected boundary lines are not sent.
 - Optionally include bounded Hover, Definition, and Type Definition evidence for at most three selected identifiers using VS Code's provider APIs. Explicit definition reads stay one hop away within the originating workspace folder. The total collection deadline is 600 ms and the evidence budget is 4,000 UTF-16 code units. Missing, failed, or slow providers fall back to the basic input. See [Bounded semantic context](semantic-context-plan.md).
@@ -51,9 +51,9 @@ Use for the cache the same input that is actually sent after applying the limits
 
 Obtain models with `vscode.lm.selectChatModels`, build the instruction and target data with `LanguageModelChatMessage.User`, and pass them to `model.sendRequest(messages, options, token)`. The MVP uses text responses only. Do not communicate directly with a custom API or allow the model to execute tools. [Language Model API guide](https://code.visualstudio.com/api/extension-guides/ai/language-model)
 
-The MVP's default provider is `vendor: 'copilot'`. For automatic selection, use the priority order of candidates evaluated during implementation with the same short-text evaluation. Do not assume that the first enumerated model is the fastest or that the selection in the Chat screen can be retrieved unchanged. If no compatible candidate is available, ask the user once to choose from the available models of the same provider. Do not silently switch to another provider.
+The MVP's default provider is `vendor: 'copilot'`. For automatic selection, use the priority order of candidates evaluated during implementation with the same short-text evaluation. Do not assume that the first enumerated model is the fastest or that the selection in the Chat screen can be retrieved unchanged. If no compatible candidate is available, ask the user once to choose from the available models of the same provider and remember the chosen ID in extension global state (`codeSubtitle.autoModelId`) so the picker does not return after a restart. Do not silently switch to another provider.
 
-Do not make a particular model name or speed a permanent assumption. Reuse the selected model, and invalidate it when `lm.onDidChangeChatModels` fires or an unavailable-model failure occurs. If the selected model disappears, show brief guidance and select again on the next explicit operation. [Model selection API](https://code.visualstudio.com/api/references/vscode-api#lm)
+Do not make a particular model name or speed a permanent assumption. Reuse the selected model, and invalidate the in-memory selection when `lm.onDidChangeChatModels` fires or an unavailable-model failure occurs; the stored ID is kept and re-validated against the available models on the next resolve. If the stored model is no longer available, show the picker again and overwrite the stored ID. An explicit `codeSubtitle.model` ID bypasses the stored choice. [Model selection API](https://code.visualstudio.com/api/references/vscode-api#lm)
 
 Even a route that does not require an API key may require VS Code sign-in, model-use permission, consent for the extension, and available quota. Start model retrieval from a user operation. On first use, briefly explain what will be submitted and leave consent for model use to VS Code's standard flow. Do not add a duplicate confirmation of your own; if consent is refused, do not submit.
 
@@ -86,7 +86,7 @@ Render the stream as plain text; do not execute links or commands. Normalize lin
 
 **The MVP adopts Text Editor Decoration.** This is to control streaming updates and immediate clearing for one explicit request; it does not mean that a speed difference between the two methods has been measured. [InlayHint API](https://code.visualstudio.com/api/references/vscode-api#InlayHint), [Decoration API](https://code.visualstudio.com/api/references/vscode-api#DecorationRenderOptions)
 
-Place a zero-width range at the end of the last selected line and show `↳ ` followed by the subtitle with `after.contentText`. Render only in the editor where the command ran. Do not change the original code, line height, or scroll position. Reuse one decoration type; do not recreate it for each fragment. Use colors that support light, dark, and high-contrast themes, and distinguish generating, completed, and failed states without relying on color alone. [Official end-of-line annotation tutorial](https://code.visualstudio.com/api/extension-guides/ai/language-model-tutorial)
+Place a zero-width range at the end of the last selected line and show `↳ ` followed by the subtitle with `after.contentText`. Render only in the editor where the command ran. Do not change the original code, line height, or scroll position. Reuse one decoration type; do not recreate it for each fragment. Use colors that support light, dark, and high-contrast themes, and distinguish generating, completed, and failed states without relying on color alone: preparing and streaming use `editorCodeLens.foreground` with "Generating…" or a trailing " …", a completed subtitle uses `editorHint.foreground` as plain text, and only inline failure guidance uses `editorWarning.foreground`. [Official end-of-line annotation tutorial](https://code.visualstudio.com/api/extension-guides/ai/language-model-tutorial)
 
 Within the product policy of 1–2 lines, the initial required experience is one short line. Do not claim to achieve two lines with newline characters or private CSS behavior. Long lines, narrow split editors, and the presence or absence of wrapping may cause clipping; verify during the first display validation that the meaning can be read near the selection. If horizontal scrolling or overlap with code becomes mandatory, reconsider the adopted approach; do not silently change the specification to a Hover or panel. Decide whether two lines are possible and the minimum supported VS Code version through this validation.
 
@@ -100,17 +100,18 @@ The core creates one `AbortController` per request. The adapter bridges that sha
 
 Do not include consent waiting in the generation timeout. For an unconsented first request, wait for `sendRequest` to resolve through VS Code's standard consent flow before arming the stream deadline. For an already-authorized request, arm the deadline when `sendRequest` starts. Initial-use measurements must still report consent and request latency separately, because that latency cannot always be strictly separated from `sendRequest` resolution. [LanguageModelChat API](https://code.visualstudio.com/api/references/vscode-api#LanguageModelChat)
 
-| Trigger                                                                  | Behavior                                                                                     |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| Run again while generating for the same target                           | Continue the current request; do not submit a duplicate                                      |
-| Start a different request                                                | Cancel the previous request, discard its display and update timer, and start with a new ID   |
-| Selection change or document edit                                        | Cancel and clear. Do not automatically submit the changed range                              |
-| Switch editors, move the target range out of view, or close the document | Cancel and clear. Even if the user returns, do not show it again until an explicit operation |
-| `Esc`                                                                    | Cancel and clear only when the subtitle is preparing, generating, or visible                 |
-| Language or model setting change                                         | Cancel and clear, and invalidate caches for the old setting                                  |
-| 10 seconds after generation completes                                    | Clear the subtitle. Manage the cache expiration separately                                   |
-| 10 seconds after the stream deadline is armed                            | Cancel the request and stream, and show brief timeout guidance                               |
-| Disable or shut down                                                     | Release the token, timers, events, decoration, and cache                                     |
+| Trigger                                        | Behavior                                                                                     |
+| ---------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Run again while generating for the same target | Continue the current request; do not submit a duplicate                                      |
+| Start a different request                      | Cancel the previous request, discard its display and update timer, and start with a new ID   |
+| Selection change or document edit              | Cancel and clear. Do not automatically submit the changed range                              |
+| Switch editors or close the document           | Cancel and clear. Even if the user returns, do not show it again until an explicit operation |
+| Scroll the target range out of view            | Keep the subtitle; scrolling within the same editor is reading, not moving on                |
+| `Esc`                                          | Cancel and clear only when the subtitle is preparing, generating, or visible                 |
+| Language or model setting change               | Cancel and clear, and invalidate caches for the old setting                                  |
+| 10–30 seconds after generation completes       | Clear the subtitle after `clamp(graphemes × 150 ms, 10 s, 30 s)`; cache expiry is separate   |
+| 10 seconds after the stream deadline is armed  | Cancel the request and stream, and show brief timeout guidance                               |
+| Disable or shut down                           | Release the token, timers, events, decoration, and cache                                     |
 
 Fragments or exceptions that arrive after cancellation must not touch a new subtitle, and an old `finally` block must not clear the state of a new request.
 
@@ -135,14 +136,14 @@ Disk persistence is outside the MVP. If it is considered later, decide separatel
 
 ## 8. Settings and controls
 
-| Proposed setting              | Default | Description                                                              |
-| ----------------------------- | ------- | ------------------------------------------------------------------------ |
-| `codeSubtitle.outputLanguage` | `auto`  | Uses `vscode.env.language`; can be overridden with any language tag      |
-| `codeSubtitle.model`          | `auto`  | Automatic selection within the default provider or an available model ID |
+| Proposed setting              | Default | Description                                                            |
+| ----------------------------- | ------- | ---------------------------------------------------------------------- |
+| `codeSubtitle.outputLanguage` | `auto`  | Uses `vscode.env.language`; can be overridden with any language tag    |
+| `codeSubtitle.model`          | `auto`  | Remembered choice within the default provider or an available model ID |
 
 Do not make API keys, longer output, display method, context-line count, cache expiration, temperature, or similar items MVP settings. Treat output language and model as user settings so that repository settings cannot change them unintentionally.
 
-The primary command is `codeSubtitle.show` (Show Subtitle). Also provide `codeSubtitle.dismiss` (Dismiss Subtitle) and `codeSubtitle.clearCache` (Clear Cache). The proposed shortcuts are Windows/Linux `Alt+E` and macOS `Ctrl+Alt+E`. Allow changes through the standard keybinding feature and test conflicts with IME, AltGr, accent input, and existing commands.
+The primary command is `codeSubtitle.show` (Show Subtitle), also exposed in the editor context menu (`editor/context`, group `z_commands`) for readers who prefer the mouse. Also provide `codeSubtitle.dismiss` (Dismiss Subtitle), `codeSubtitle.clearCache` (Clear Cache), and `codeSubtitle.chooseModel` (Choose Model), which re-opens the model picker and updates the remembered automatic choice without editing settings. The proposed shortcuts are Windows/Linux `Shift+Alt+E` and macOS `Ctrl+Alt+E`. Plain `Alt+E` is avoided because VS Code enables menu-bar mnemonics by default on Windows/Linux (`window.enableMenuBarMnemonics`), where it opens the Edit menu before an extension binding can fire. The Windows/Linux key is unverified on real hardware. Allow changes through the standard keybinding feature and test conflicts with IME, AltGr, accent input, and existing commands.
 
 Limit the `Esc` binding by subtitle state and editor focus, and confirm its priority against the existing behavior that closes completion candidates or other input UI. Do not build a custom detail panel or settings wizard.
 
@@ -151,6 +152,8 @@ Limit the `Esc` binding by subtitle state and editor focus, and confirm its prio
 Code Subtitle sends code to a model only after an explicit operation. The first-use disclosure describes the selection, adjacent lines, and optional language-service type/docs and same-workspace definition excerpts. Explain how to disable semantic context in user settings. Do not promise that secret detection can completely eliminate adjacent secrets. Only bounded provider-resolved definitions may supplement the request; do not scan the repository.
 
 Do not provide a custom backend or send telemetry. Do not write prompts, code, subtitles, or URIs to logs, exception messages, or persistent storage. Do not display or record model errors as-is; convert them into the permitted failure categories and brief guidance. The model provider and organization settings control the provider's terms for destinations, retention, training, and billing.
+
+Render guidance the reader can act on inside the editor (`selection`, `inputTooLarge`, `outputInvalid`, `outputTooLong`, `timeout`, `network`) in the same decoration slot at the anchor line using `editorWarning.foreground`, so the eyes stay on the code. It clears after 5 seconds or on selection change, edit, editor switch, `Esc`, or a new request, and keeps the `codeSubtitle.active` context so `Esc` works. Failures that need action outside the editor (`modelUnavailable`, `accessDenied`, `blocked`), or that arrive without a request or editor to anchor to, use a warning notification.
 
 In Restricted Mode, use only the selection and adjacent lines; skip semantic collection. Workspace Trust does not replace consent to send code. Follow VS Code and organization restrictions on model use, and never execute generated results or input comments. Do not convert Markdown into trusted command links. [Workspace Trust guide](https://code.visualstudio.com/api/extension-guides/workspace-trust)
 

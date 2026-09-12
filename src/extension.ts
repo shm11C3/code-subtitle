@@ -3,15 +3,22 @@ import { createInput, fitInput, type InputSnapshot } from "./policy.js";
 import { SubtitleError, type SelectionRange, type SubtitleInput } from "./contracts.js";
 import { MemorySubtitleCache } from "./cache.js";
 import { SubtitleSession } from "./session.js";
-import { VscodeModelGateway, type VscodeModelGatewayOptions } from "./vscode-model.js";
+import {
+  VscodeModelGateway,
+  type ModelChoiceStore,
+  type VscodeModelGatewayOptions,
+} from "./vscode-model.js";
 import { VscodeSubtitleView } from "./vscode-view.js";
 import { VscodeSemanticContextProvider } from "./vscode-semantic.js";
 
 const DISCLOSURE_KEY = "codeSubtitle.semanticContextDisclosureShown";
+const AUTO_MODEL_KEY = "codeSubtitle.autoModelId";
 
 interface ActiveRequest {
   readonly input: SubtitleInput;
   readonly editor: vscode.TextEditor;
+  /** The editor selection when the command ran; it may be an empty cursor widened to a line. */
+  readonly selection: SelectionRange;
   readonly modelSetting: string;
   readonly outputLanguage: string;
   readonly semanticContext: boolean;
@@ -78,12 +85,17 @@ export function activate(context: vscode.ExtensionContext): void {
     userMessage: (content) => vscode.LanguageModelChatMessage.User(content),
     createCancellationTokenSource: () => new vscode.CancellationTokenSource(),
   };
+  const choiceStore: ModelChoiceStore = {
+    get: () => context.globalState.get<string>(AUTO_MODEL_KEY),
+    set: (id) => context.globalState.update(AUTO_MODEL_KEY, id),
+  };
   const gateway = new VscodeModelGateway({
     runtime,
     access: context.languageModelAccessInformation,
     picker: {
       showQuickPick: (items, options, token) => vscode.window.showQuickPick(items, options, token),
     },
+    choiceStore,
     fitInput: async (input, countTokens, maxTokens, signal) => {
       const enriched = semanticEnabled()
         ? { ...input, semanticContext: await semanticProvider.collect(input, signal) }
@@ -109,14 +121,15 @@ export function activate(context: vscode.ExtensionContext): void {
     if (
       editor.document.uri.toString() !== input.documentUri ||
       editor.document.version !== input.documentVersion ||
-      !sameEditorSelection(editor, input.range) ||
+      !sameEditorSelection(editor, active.selection) ||
       outputLanguage(editor.document) !== active.outputLanguage ||
       semanticEnabled() !== active.semanticContext ||
       modelSetting() !== active.modelSetting
     ) {
       return false;
     }
-    return isVisible(editor, input.anchorLine);
+    // Scrolling the anchor out of view is still reading; only the triggers above dismiss.
+    return true;
   };
 
   const session = new SubtitleSession({ gateway, view, cache, isCurrent });
@@ -124,6 +137,8 @@ export function activate(context: vscode.ExtensionContext): void {
   const dismissActive = (): void => {
     activeRequest = undefined;
     session.dismiss();
+    // Inline failure guidance outlives the session's request, so clear the view directly.
+    view.clear();
   };
 
   const invalidateSource = (uri: vscode.Uri): void => {
@@ -138,6 +153,7 @@ export function activate(context: vscode.ExtensionContext): void {
       (workspaceId !== undefined && activeRequest?.input.workspaceId === workspaceId)
     ) {
       activeRequest = undefined;
+      view.clear();
     }
   };
 
@@ -150,9 +166,10 @@ export function activate(context: vscode.ExtensionContext): void {
     }
 
     const id = editorId(editor);
+    const selections = editor.selections.map(toSelectionRange);
     const snapshot: InputSnapshot = {
       text: editor.document.getText(),
-      selections: editor.selections.map(toSelectionRange),
+      selections: targetRanges(editor.document, selections),
       documentUri: editor.document.uri.toString(),
       documentVersion: editor.document.version,
       editorId: id,
@@ -175,12 +192,34 @@ export function activate(context: vscode.ExtensionContext): void {
     activeRequest = {
       input,
       editor,
+      selection: selections[0] ?? input.range,
       modelSetting: currentModelSetting,
       outputLanguage: snapshot.outputLanguage,
       semanticContext: semanticEnabled(),
     };
     showFirstUseDisclosure(context);
     await session.show(input);
+  };
+
+  const chooseModel = async (): Promise<void> => {
+    let chosen: string | undefined;
+    try {
+      chosen = await gateway.chooseModel(new AbortController().signal);
+    } catch (error: unknown) {
+      view.notify(error instanceof SubtitleError ? error.code : "modelUnavailable");
+      return;
+    }
+    if (chosen === undefined) {
+      return;
+    }
+    // Results from the previous model are no longer reused, as with a model setting change.
+    activeRequest = undefined;
+    session.clearCache();
+    if (modelSetting() !== "auto") {
+      void vscode.window.showInformationMessage(
+        "Code Subtitle remembered the model, but the codeSubtitle.model setting takes precedence until it is set to auto.",
+      );
+    }
   };
 
   const commands = [
@@ -190,6 +229,7 @@ export function activate(context: vscode.ExtensionContext): void {
       activeRequest = undefined;
       session.clearCache();
     }),
+    vscode.commands.registerCommand("codeSubtitle.chooseModel", chooseModel),
   ];
   context.subscriptions.push(...commands);
 
@@ -209,22 +249,13 @@ export function activate(context: vscode.ExtensionContext): void {
       if (
         activeRequest &&
         event.textEditor === activeRequest.editor &&
-        !sameEditorSelection(event.textEditor, activeRequest.input.range)
+        !sameEditorSelection(event.textEditor, activeRequest.selection)
       ) {
         dismissActive();
       }
     }),
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (activeRequest && editor !== activeRequest.editor) {
-        dismissActive();
-      }
-    }),
-    vscode.window.onDidChangeTextEditorVisibleRanges((event) => {
-      if (
-        activeRequest &&
-        event.textEditor === activeRequest.editor &&
-        !isVisible(event.textEditor, activeRequest.input.anchorLine)
-      ) {
         dismissActive();
       }
     }),
@@ -302,6 +333,28 @@ function showFirstUseDisclosure(context: vscode.ExtensionContext): void {
   );
 }
 
+/** An empty cursor targets its whole line; anything else is submitted as selected. */
+function targetRanges(
+  document: vscode.TextDocument,
+  selections: SelectionRange[],
+): SelectionRange[] {
+  const only = selections[0];
+  if (selections.length !== 1 || only === undefined || !isEmptyRange(only)) {
+    return selections;
+  }
+  const line = only.start.line;
+  return [
+    {
+      start: { line, character: 0 },
+      end: { line, character: document.lineAt(line).text.length },
+    },
+  ];
+}
+
+function isEmptyRange(range: SelectionRange): boolean {
+  return range.start.line === range.end.line && range.start.character === range.end.character;
+}
+
 function toSelectionRange(selection: vscode.Selection): SelectionRange {
   return {
     start: { line: selection.start.line, character: selection.start.character },
@@ -337,11 +390,5 @@ function sameRange(left: SelectionRange, right: SelectionRange): boolean {
     left.start.character === right.start.character &&
     left.end.line === right.end.line &&
     left.end.character === right.end.character
-  );
-}
-
-function isVisible(editor: vscode.TextEditor, anchorLine: number): boolean {
-  return editor.visibleRanges.some(
-    (range) => range.start.line <= anchorLine && anchorLine <= range.end.line,
   );
 }

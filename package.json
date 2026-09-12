@@ -46,14 +46,28 @@
         "command": "codeSubtitle.clearCache",
         "title": "Clear Cache",
         "category": "Code Subtitle"
+      },
+      {
+        "command": "codeSubtitle.chooseModel",
+        "title": "Choose Model",
+        "category": "Code Subtitle"
       }
     ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codeSubtitle.show",
+          "when": "editorTextFocus && !editorHasMultipleSelections",
+          "group": "z_commands"
+        }
+      ]
+    },
     "keybindings": [
       {
         "command": "codeSubtitle.show",
-        "key": "alt+e",
+        "key": "shift+alt+e",
         "mac": "ctrl+alt+e",
-        "when": "editorTextFocus && editorHasSelection && !editorHasMultipleSelections"
+        "when": "editorTextFocus && !editorHasMultipleSelections"
       },
       {
         "command": "codeSubtitle.dismiss",
@@ -74,7 +88,7 @@
           "type": "string",
           "default": "auto",
           "scope": "application",
-          "description": "Copilot model ID, or auto to select an available model for this session."
+          "description": "Copilot model ID, or auto to use the model chosen once with Code Subtitle: Choose Model and remembered across restarts."
         },
         "codeSubtitle.semanticContext": {
           "type": "boolean",

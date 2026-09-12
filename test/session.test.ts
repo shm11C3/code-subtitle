@@ -88,6 +88,7 @@ class RecordingView implements SubtitleView {
   }> = [];
   clearCount = 0;
   readonly failures: string[] = [];
+  readonly failureInputs: Array<SubtitleInput | undefined> = [];
 
   show(input: SubtitleInput, text: string, phase: SubtitlePhase): void {
     this.shows.push({ input, text, phase });
@@ -97,8 +98,9 @@ class RecordingView implements SubtitleView {
     this.clearCount += 1;
   }
 
-  notify(failure: Parameters<SubtitleView["notify"]>[0]): void {
+  notify(failure: Parameters<SubtitleView["notify"]>[0], input?: SubtitleInput): void {
     this.failures.push(failure);
+    this.failureInputs.push(input);
   }
 }
 
@@ -401,6 +403,42 @@ test("completed results are reused without generation and expire from the view",
   assert.equal(view.clearCount, clearCountAfterRender + 1);
 });
 
+test("a long completed subtitle stays visible for its reading time before expiring", async () => {
+  const text = "a".repeat(200);
+  const view = new RecordingView();
+  const cache = new MemoryCache();
+  const clock = new ManualClock();
+  const session = new SubtitleSession({
+    gateway: createGateway(async () =>
+      (async function* (): AsyncIterable<string> {
+        yield text;
+      })(),
+    ),
+    view,
+    cache,
+    clock,
+    isCurrent: () => true,
+  });
+  const input = createInput();
+
+  await session.show(input);
+  assert.equal(view.shows.at(-1)?.phase, "visible");
+  const clearCountAfterStream = view.clearCount;
+  clock.advanceBy(29_999);
+  assert.equal(view.clearCount, clearCountAfterStream);
+  clock.advanceBy(1);
+  assert.equal(view.clearCount, clearCountAfterStream + 1);
+
+  await session.show(input);
+  assert.equal(cache.gets, 2);
+  assert.equal(view.shows.at(-1)?.phase, "visible");
+  const clearCountAfterHit = view.clearCount;
+  clock.advanceBy(29_999);
+  assert.equal(view.clearCount, clearCountAfterHit);
+  clock.advanceBy(1);
+  assert.equal(view.clearCount, clearCountAfterHit + 1);
+});
+
 test("Japanese output above the concise target streams and is cached without truncation", async () => {
   const text =
     "要求ごとの識別子で応答を照合することで、先に開始した処理の結果が後から到着しても、現在表示している新しい結果を上書きしないようにしているため、キャンセルが通信先まで伝わらない場合にも表示の整合性を維持できます。";
@@ -456,6 +494,26 @@ test("output beyond the display limit is reported as too long and never cached",
     false,
   );
   assert.equal(view.clearCount > 0, true);
+});
+
+test("failures pass the request input so guidance can be rendered beside the code", async () => {
+  const view = new RecordingView();
+  const input = createInput();
+  const session = new SubtitleSession({
+    gateway: createGateway(async () =>
+      (async function* (): AsyncIterable<string> {
+        yield "a".repeat(401);
+      })(),
+    ),
+    view,
+    cache: new MemoryCache(),
+    clock: new ManualClock(),
+    isCurrent: () => true,
+  });
+
+  await session.show(input);
+  assert.deepEqual(view.failures, ["outputTooLong"]);
+  assert.deepEqual(view.failureInputs, [input]);
 });
 
 test("validates raw streamed lines before display normalization", async () => {

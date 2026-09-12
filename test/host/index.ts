@@ -70,7 +70,12 @@ export async function run(): Promise<void> {
   assert.ok(extension, "The development extension is registered.");
   await extension.activate();
   const commands = await vscode.commands.getCommands(true);
-  for (const command of ["codeSubtitle.show", "codeSubtitle.dismiss", "codeSubtitle.clearCache"]) {
+  for (const command of [
+    "codeSubtitle.show",
+    "codeSubtitle.dismiss",
+    "codeSubtitle.clearCache",
+    "codeSubtitle.chooseModel",
+  ]) {
     assert.ok(commands.includes(command), `${command} is registered.`);
   }
   await vscode.commands.executeCommand("codeSubtitle.dismiss");
