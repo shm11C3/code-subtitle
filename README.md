@@ -2,17 +2,29 @@
 
 **Grasp meaning in an instant while reading code.**
 
-`code-subtitle` is a VS Code extension for experienced engineers reading OSS or reviewing unfamiliar code. It displays one short engineering insight for selected code, or a translation of a comment, near the code in the reader's preferred language.
+[![CI](https://github.com/shm11C3/code-subtitle/actions/workflows/ci.yml/badge.svg)](https://github.com/shm11C3/code-subtitle/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-An initial local preview is implemented. It includes subtitle commands, streamed rendering, request cancellation, bounded input, and in-memory caching. Automated tests and a VS Code extension-host smoke test pass; visual acceptance, real-model quality, and performance evaluation remain open. See the [validation record](docs/validation.md).
+Code Subtitle is a VS Code extension for experienced engineers reading OSS or reviewing unfamiliar code. It displays one short engineering insight for selected code, or a faithful translation of a comment, near the code in the reader's preferred language.
 
-## Try the preview
+The current release is a locally packaged preview. It includes streamed rendering, cancellation, bounded semantic context from the language service, model-choice reuse, and an in-memory cache. Automated checks pass; visual acceptance, real-model quality, accessibility, and cross-platform keyboard validation remain open. See the [validation record](docs/validation.md).
 
-Use desktop VS Code 1.135 or newer and Node.js 22 or newer. Run `npm ci`, `npm test`, and `npm run package`, then use **Extensions: Install from VSIX…** to install `code-subtitle-0.0.1.vsix`. For a development host, open Run and Debug and launch **Run Code Subtitle**. See [development instructions](docs/development.md).
+## Install the preview
 
-The package uses a local placeholder publisher. It has not been published to a marketplace, and an OSS license has not yet been selected.
+The preview targets desktop VS Code 1.135 or newer. To build and install it locally:
 
-## Value
+```sh
+npm ci
+npm run check
+npm test
+npm run package
+```
+
+In VS Code, run **Extensions: Install from VSIX…** and choose `code-subtitle-0.0.1.vsix`. To run the extension from source, open the repository in VS Code and launch **Run Code Subtitle** from Run and Debug. See the [development guide](docs/development.md) for host smoke tests and manual acceptance.
+
+This preview uses a local publisher ID and is not published to the VS Code Marketplace yet. The source is available under the [MIT License](LICENSE).
+
+## Why Code Subtitle
 
 - Return to reading without moving your eyes away from the editor.
 - Connect code to the responsibility, invariant, failure boundary, or tradeoff that matters when reading or changing it.
@@ -20,12 +32,11 @@ The package uses a local placeholder publisher. It has not been published to a m
 - Keep API-key entry, long prompts, and answer-history management out of everyday use.
 - Show subtitles only when needed, without changing source code.
 
-## Example flow
+The target is the small question that interrupts code reading: “What boundary does this guard protect?” or “What does this comment require?” Code Subtitle keeps that question beside the code and returns one grounded insight instead of opening a separate chat thread.
 
-1. Select the code or comment you want to understand, or just leave the cursor on the line in question.
-2. Run `Code Subtitle: Show Subtitle` from the shortcut, the editor's right-click context menu, or the Command Palette. Default shortcuts are `Shift+Alt+E` on Windows/Linux and `Ctrl+Alt+E` on macOS. The Windows/Linux key avoids the menu-bar mnemonic `Alt+E` (Edit menu) but has not been verified on real Windows/Linux hardware. Customize them in VS Code's Keyboard Shortcuts editor to suit your keyboard layout and existing bindings.
-3. A short subtitle streams in near the end of the selection.
-4. The subtitle disappears when you continue reading and change the selection. Pressing `Esc` while it is visible also dismisses it.
+## Example
+
+Select the code or comment you want to understand, or place the cursor on the line in question. Run **Code Subtitle: Show Subtitle** and continue reading while the insight streams beside the code.
 
 For example, when the following code is selected:
 
@@ -52,21 +63,41 @@ When only a comment is selected:
 
 These are examples of displayed content. The extension does not insert into or replace the original text. When the reason cannot be inferred from the code, it does not present the author's intent as fact.
 
-## MVP scope
+## Use it
 
-| Included                         | Policy                                                                                                            |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| Selection → shortcut → subtitle  | Generate only after an explicit action; target one selection, or the cursor's line when nothing is selected       |
-| Short explanation or translation | Surface one grounded engineering insight for code; translate comments while preserving their meaning              |
-| One or two lines near the code   | The MVP baseline is one line rendered with a Decoration; decide whether to use two lines after display validation |
-| Streaming                        | Start displaying from the first content instead of waiting for the full response                                  |
-| Temporary subtitle               | Clear it on selection change, edit, editor switch, `Esc`, or expiry (10–30 s, scaled to the text length)          |
-| Cancellation and reuse           | Cancel old requests and use a short-lived, workspace-scoped memory cache                                          |
-| Minimal configuration            | Use automatic output language and automatic model selection by default                                            |
+1. Select code or a comment, or place the cursor on a non-empty line.
+2. Run **Code Subtitle: Show Subtitle** from the editor context menu, Command Palette, or keyboard shortcut.
+3. Read the streamed subtitle beside the code. Press `Esc` to dismiss it.
+
+The default shortcuts are `Ctrl+Alt+E` on macOS and `Shift+Alt+E` on Windows/Linux. Change them in **Preferences: Open Keyboard Shortcuts** if they conflict with your layout.
+
+The extension displays one temporary subtitle at a time. It clears when the selection changes, the document is edited, the editor changes, `Esc` is pressed, or the reading-time expiry is reached. An empty cursor selection uses the current line as the request.
+
+## What it explains
+
+| Input          | Result                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------- |
+| Code           | One responsibility, invariant, failure boundary, or concrete tradeoff grounded in the selection |
+| Comments only  | A short translation that preserves negation, conditions, and caveats                            |
+| Unclear intent | The observable responsibility or the specific missing context, without inventing author intent  |
+
+Code Subtitle is designed for OSS reading and human code review. It does not produce an automated review verdict, change source files, or turn a short question into a long lesson.
 
 For Japanese, the default target is one sentence within 100 grapheme clusters, with a display allowance up to 200. Other languages target 200 grapheme clusters with an allowance up to 400. Accuracy of negation, conditions, and caveats takes priority over brevity; if the result does not fit, ask the user to make the selection smaller.
 
-## Non-goals
+## Language and model support
+
+The programming language follows the active VS Code language mode. The extension accepts any mode VS Code can open; language-service enrichment is used when that mode provides compatible Hover, Definition, or Type Definition providers. TypeScript's built-in service and TypeScript 7 (`tsgo`) have been validated through the same provider API. Other language modes fall back to the selected code and nearby lines when provider evidence is unavailable.
+
+The subtitle language defaults to VS Code's display language. Set `codeSubtitle.outputLanguage` to a language tag such as `ja` or `en` to override it. Set `codeSubtitle.model` to a bare model ID to pin a Copilot model, or use `vendor:id` to select a model supplied by another VS Code language-model provider. With `auto`, Code Subtitle prefers Copilot when available and otherwise shows all models exposed through VS Code; the selected vendor-qualified model is remembered by **Code Subtitle: Choose Model** while it remains available.
+
+## Data boundary
+
+Code is sent only after an explicit command. The request contains the selected text and up to five adjacent lines on each side. With `codeSubtitle.semanticContext` enabled, it may also contain bounded type information, documentation, and one-hop definitions from the same workspace folder. Disable that setting to send only the selection and adjacent lines.
+
+Code Subtitle does not require its own API key, does not run a separate backend, does not modify files, and does not send extension telemetry. Model-provider access, retention, and organization policy still apply. The cache stores completed subtitles in memory only.
+
+## MVP boundaries
 
 - Chat, a detailed panel, long explanations in Hover, and conversation history.
 - Code generation, completion, or modification, and writing translations back to files.
@@ -74,7 +105,9 @@ For Japanese, the default target is one sentence within 100 grapheme clusters, w
 - Automated review, comprehensive syntax lessons, and full translation of long comments.
 - A custom AI backend, extension-specific API-key settings, and persistent cache storage.
 
-## Technical direction and usage assumptions
+Diff editors, notebooks, browser editors, Remote environments, screen readers, and non-macOS keyboard behavior are not yet part of the validated preview. Track these gaps in the [open issues](https://github.com/shm11C3/code-subtitle/issues).
+
+## Technical direction
 
 The extension uses TypeScript and stable VS Code APIs, and sends requests through the VS Code Language Model API. Subtitles use Text Editor Decorations without source-editing APIs. Each request has a cancellation signal and an identifier so that late responses after cancellation are discarded. Automatic model selection checks Copilot first, then falls back to every model exposed by installed VS Code providers when Copilot is unavailable. The one-time picker remembers a vendor-qualified choice across VS Code restarts, re-validates it against the current catalog, and can be reopened with `Code Subtitle: Choose Model`; no unmeasured speed ranking is assumed.
 
@@ -86,11 +119,18 @@ The extension does not guarantee local model execution; data handling depends on
 
 Speed is measured primarily by TTFE (Time To First Explanation: the time until the first subtitle that makes the meaning understandable). With consent granted, the extension already running, and a cache miss, the targets are **a median of no more than one second until a useful subtitle appears and a median of no more than two seconds until completion**. These are unmeasured targets, not guarantees. First use, slow connections, and cache hits will be measured separately.
 
-## Documentation
+## Documentation and contribution
 
 - [MVP product overview](docs/mvp-product-overview.md): target users, experience, scope, and acceptance criteria.
 - [Minimal design](docs/minimal-design.md): APIs, rendering approach, cancellation, caching, privacy, and performance measurement.
 - [Product principles](docs/product-principles.md): principles for deciding features and specifications.
 - [Output quality](docs/output-quality.md): examples and evaluation criteria for OSS reading and human code review.
+- [Development guide](docs/development.md): local setup, deterministic tests, extension-host smoke tests, and manual acceptance.
 
-The product principles are authoritative for product decisions, the product overview is authoritative for MVP scope, and the minimal design is authoritative for technical details and numeric targets. The README is a summary of them.
+Bug reports and focused feature proposals are welcome in [GitHub Issues](https://github.com/shm11C3/code-subtitle/issues). Please include the VS Code version, platform, language mode, model, and whether semantic context was enabled; do not include private source code or prompts.
+
+The product principles are authoritative for product decisions, the product overview is authoritative for MVP scope, and the minimal design is authoritative for technical details and numeric targets. The README is a user-facing summary of them.
+
+## License
+
+Code Subtitle is released under the [MIT License](LICENSE).

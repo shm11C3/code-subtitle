@@ -2,23 +2,23 @@
 
 Status: approved by the user on 2026-09-12; local preview implemented. See [validation](validation.md) for completed checks and outstanding product acceptance.
 
-The user subsequently authorized [bounded semantic context](semantic-context-plan.md), extending the original selection-only data boundary through VS Code provider APIs. That plan records the additional limits, fallback, configuration, and regression cases.
+The user subsequently authorized [bounded semantic context](semantic-context-plan.md), extending the original selection-only data boundary through VS Code provider APIs. That plan records the additional limits, fallback, configuration, and regression cases. The repository now carries an MIT license; Marketplace publication remains a separate release decision.
 
 ## Outcome
 
-A locally installable desktop VS Code extension that turns one explicit selection into a short, streamed subtitle without editing the document or interrupting reading. The existing product overview and minimal design define the scope. Publishing to a marketplace and choosing an OSS license are separate release decisions.
+A locally installable desktop VS Code extension that turns one explicit selection into a short, streamed subtitle without editing the document or interrupting reading. The existing product overview and minimal design define the scope. Publishing to a marketplace and selecting a public publisher identity are separate release decisions.
 
 ## Architecture
 
 Use TypeScript with a small VS Code adapter and a deterministic core. Do not add a backend, webview, repository index, or general extension framework.
 
-| Boundary                           | Public behavior                                                                                          | Owner during implementation                 |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| Input and output policy            | Validate one selection; bound adjacent context; build a prompt; normalize and validate subtitle text     | Luna / max: core policy                     |
-| Subtitle session                   | Start, deduplicate, cancel, expire, and invalidate requests; prevent stale output and stale cleanup      | Luna / max: session control                 |
-| Memory cache                       | Retrieve and store completed results; enforce expiry, memory limits, and document/workspace invalidation | Luna / max: core policy, after input policy |
-| VS Code adapter                    | Register commands/events; resolve a preferred or explicitly selected provider model; count tokens; stream text; render decorations | Luna / max: extension integration |
-| Integration and product acceptance | Resolve difficult API/race issues; inspect UX; review contracts and scope; integrate and verify          | Main session                                |
+| Boundary                           | Public behavior                                                                                                                    | Owner during implementation                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Input and output policy            | Validate one selection; bound adjacent context; build a prompt; normalize and validate subtitle text                               | Luna / max: core policy                     |
+| Subtitle session                   | Start, deduplicate, cancel, expire, and invalidate requests; prevent stale output and stale cleanup                                | Luna / max: session control                 |
+| Memory cache                       | Retrieve and store completed results; enforce expiry, memory limits, and document/workspace invalidation                           | Luna / max: core policy, after input policy |
+| VS Code adapter                    | Register commands/events; resolve a preferred or explicitly selected provider model; count tokens; stream text; render decorations | Luna / max: extension integration           |
+| Integration and product acceptance | Resolve difficult API/race issues; inspect UX; review contracts and scope; integrate and verify                                    | Main session                                |
 
 Module interfaces will follow a tracer bullet rather than a speculative framework. The session receives an immutable request snapshot, a model gateway, a subtitle view, a cache, and a clock. The gateway exposes preparation and cancellable text streaming. The view exposes preparing, partial, complete, and clear states without document mutation. Adapters translate VS Code events into session invalidation; model-specific objects do not enter input policy or cache logic.
 
@@ -58,4 +58,4 @@ Use public module behavior with controlled provider streams and a controllable c
 
 ## Approved implementation scope
 
-The user approved the existing command interface (`show`, `dismiss`, `clearCache`), one-line subtitle MVP, and the priority behaviors above. Implementation is delegated by the roles above. Rendering acceptance remains a gate for shipping the experience. License selection does not block local development; do not add a license or publish without a separate decision.
+The user approved the command interface (`show`, `dismiss`, `clearCache`, and `chooseModel`), one-line subtitle MVP, and the priority behaviors above. Implementation is delegated by the roles above. Rendering acceptance remains a gate for shipping the experience. The MIT license covers the current source; do not imply Marketplace publication or a public publisher identity before those release decisions are complete.
