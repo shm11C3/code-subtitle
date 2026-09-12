@@ -35,6 +35,10 @@ Revision: RED: a repeated command with semantic context enabled re-queried the p
 
 RED: with `codeSubtitle.timingLog` enabled, the extension created no output channel and wrote nothing. GREEN: the extension injects a `SubtitleObserver` that lazily creates the **Code Subtitle Timing** channel and writes `request=<id> <event> +<ms>ms` lines; a companion test confirms that the default-off setting creates no channel. The line assertions exclude the fixture's source text, subtitle, and path.
 
+## Live evaluation harness
+
+`npm run eval:live` (`scripts/eval-live.cjs`, `test/eval/index.ts`, `test/eval/cases.ts`) has no automated test because it exists to make real model requests. Its checks are: it compiles with the extension build, it is excluded from the VSIX, and its no-model path prints a clear message and exits non-zero in a fresh profile. Results with a signed-in Copilot profile are recorded by hand in the results directory, not in this repository.
+
 ## Parallel iteration
 
 `node scripts/test-slice.cjs <name>` transpiles and runs one role's behavioral test file independently. It intentionally skips type checking during the local RED/GREEN iteration so another role's intermediate type errors do not block unrelated behavior tests. Final acceptance requires the complete `npm run check` and `npm test`; a slice result alone is insufficient.

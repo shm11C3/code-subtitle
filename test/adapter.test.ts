@@ -227,6 +227,52 @@ test("provider failure becomes a typed safe subtitle error", async () => {
   );
 });
 
+test("forwards configured modelOptions to sendRequest and omits them by default", async () => {
+  const requestOptions: vscode.LanguageModelChatRequestOptions[] = [];
+  const createRecordingModel = (): vscode.LanguageModelChat =>
+    ({
+      id: "options-model",
+      name: "options-model",
+      vendor: "copilot",
+      family: "options-model",
+      version: "1",
+      maxInputTokens: 1000,
+      countTokens: async () => 12,
+      sendRequest: async (
+        _messages: vscode.LanguageModelChatMessage[],
+        options?: vscode.LanguageModelChatRequestOptions,
+      ) => {
+        requestOptions.push(options ?? {});
+        return {
+          text: (async function* () {
+            yield "ok";
+          })(),
+        };
+      },
+    }) as unknown as vscode.LanguageModelChat;
+
+  const plain = new VscodeModelGateway(
+    createOptions(createRecordingModel(), [], undefined, "options-model"),
+  );
+  await (
+    await plain.prepare(createInput(), new AbortController().signal)
+  ).stream(new AbortController().signal);
+
+  const tuned = new VscodeModelGateway({
+    ...createOptions(createRecordingModel(), [], undefined, "options-model"),
+    modelOptions: { temperature: 0.2, maxTokens: 120 },
+  });
+  await (
+    await tuned.prepare(createInput(), new AbortController().signal)
+  ).stream(new AbortController().signal);
+
+  assert.equal(requestOptions.length, 2);
+  assert.equal("modelOptions" in requestOptions[0]!, false);
+  assert.equal(typeof requestOptions[0]!.justification, "string");
+  assert.deepEqual(requestOptions[1]!.modelOptions, { temperature: 0.2, maxTokens: 120 });
+  assert.equal(requestOptions[1]!.justification, requestOptions[0]!.justification);
+});
+
 test("prepare resolves the model without counting tokens; fit counts once and stream reuses it", async () => {
   const tokenSources: FakeTokenSource[] = [];
   let countCalls = 0;

@@ -49,6 +49,11 @@ export interface VscodeModelGatewayOptions {
   readonly picker: VscodeModelPicker;
   readonly fitInput: FitInput;
   readonly modelSetting?: string;
+  /**
+   * Provider-specific request options forwarded as `modelOptions`. Production
+   * passes nothing; the live evaluation harness uses this for experiments.
+   */
+  readonly modelOptions?: Record<string, unknown>;
 }
 
 /** Adapts the Copilot-only VS Code Language Model API to the core gateway. */
@@ -230,9 +235,15 @@ export class VscodeModelGateway implements ModelGateway {
     const source = this.options.runtime.createCancellationTokenSource();
     const stop = bridgeAbort(signal, source);
     try {
+      const requestOptions: vscode.LanguageModelChatRequestOptions = {
+        justification: "Explain the explicitly selected code with a short subtitle.",
+      };
+      if (this.options.modelOptions !== undefined) {
+        requestOptions.modelOptions = this.options.modelOptions;
+      }
       const response = await model.sendRequest(
         [this.options.runtime.userMessage(prompt)],
-        { justification: "Explain the explicitly selected code with a short subtitle." },
+        requestOptions,
         source.token,
       );
       throwIfAborted(signal);

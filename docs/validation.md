@@ -53,6 +53,14 @@ After recovering local disk space, all 84 tests, TypeScript checking, lint, and 
 
 The revised VSIX was packaged and reinstalled in the normal VS Code profile. Installed `policy.js`, `session.js`, `vscode-view.js`, and `extension.js` matched the build byte-for-byte. Local `.claude` worktrees are excluded from the package; the inspected archive contains 15 files (28.3 KB). Reload an existing VS Code window to activate the revision.
 
+## Quality and speed revision
+
+Prompt policy version `5` selects calibration examples by `languageId` (Rust, Go, Python, and a TypeScript fallback) and applies the Japanese output limits to Chinese and Korean; the zh/ko limits are an unvalidated extrapolation. The session now checks the cache before semantic collection and token fitting, `fitInput` skips `countTokens` while the prompt's UTF-8 byte length fits the budget, an opt-in `codeSubtitle.timingLog` setting records content-free phase timings, and `npm run eval:live` provides a live evaluation harness for the output-quality cases.
+
+On 2026-09-12, `npm run check`, `npm run lint`, `npm run fmt:check`, all 99 tests, and `npm run package` passed; the packaged VSIX contains the 15 runtime files and excludes `test/**` and `.eval-host/**`. `npm run test:host` passed on VS Code 1.135.0 (macOS arm64) in built-in mode: renderer, activation and command, cross-file semantic, and semantic host smoke, with no model request. From the deep worktree used for this revision the default `.test-host` path exceeded the macOS Unix-socket limit (`listen EINVAL`), so the run used the new `CODE_SUBTITLE_HOST_ROOT` override with a short directory.
+
+`npm run eval:live` was run once in a fresh profile with no Copilot extension: it printed the "No Copilot model is available in the evaluation profile" guidance, wrote no results file, and exited with code 1. No live model request was made; the harness has not been run against a signed-in Copilot profile, so the recorded outputs, the effect of language-aware examples, the zh/ko limits, and any `modelOptions` experiment remain unevaluated.
+
 ## Acceptance still requiring direct observation
 
 - Subtitle readability on long lines, narrow splits, wrapped lines, themes, and zoom.

@@ -18,6 +18,7 @@
     "fmt:check": "oxfmt --check",
     "test": "npm run build && node --test dist/test/*.test.js",
     "test:host": "npm run build && node scripts/test-host.cjs",
+    "eval:live": "npm run build && node scripts/eval-live.cjs",
     "vscode:prepublish": "npm run build",
     "package": "vsce package --allow-missing-repository --skip-license --readme-path docs/extension-readme.md --out code-subtitle-0.0.1.vsix"
   },
