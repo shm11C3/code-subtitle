@@ -7,7 +7,9 @@ import {
   type PreparedRequest,
   type SubtitleCache,
   type SubtitleInput,
+  type SubtitleObserver,
   type SubtitlePhase,
+  type SubtitleTimingEvent,
   type SubtitleView,
 } from "../src/contracts.js";
 import { SubtitleSession } from "../src/session.js";
@@ -404,6 +406,115 @@ test("completed results are reused without generation and expire from the view",
   assert.equal(view.clearCount, clearCountAfterRender);
   clock.advanceBy(1);
   assert.equal(view.clearCount, clearCountAfterRender + 1);
+});
+
+class RecordingObserver implements SubtitleObserver {
+  readonly events: SubtitleTimingEvent[] = [];
+
+  observe(event: SubtitleTimingEvent): void {
+    this.events.push(event);
+  }
+
+  summary(): string[] {
+    return this.events.map((event) =>
+      event.name === "failed"
+        ? `${event.requestId}:failed(${event.code})@${event.at}`
+        : `${event.requestId}:${event.name}@${event.at}`,
+    );
+  }
+}
+
+function timedGateway(clock: ManualClock, chunks: () => AsyncIterable<string>): ModelGateway {
+  return {
+    async prepare(input) {
+      clock.advanceBy(100);
+      const prompt = `${input.documentUri}:${input.selection}`;
+      return {
+        input,
+        model: { vendor: "copilot", id: "test-model", version: "1" },
+        prompt,
+        alreadyAuthorized: true,
+        fit: async () => ({ input, prompt }),
+        stream: async () => chunks(),
+      };
+    },
+  };
+}
+
+test("reports content-free phase timings for a streamed request", async () => {
+  const clock = new ManualClock();
+  const observer = new RecordingObserver();
+  const session = new SubtitleSession({
+    gateway: timedGateway(clock, async function* () {
+      yield "Gates";
+      clock.advanceBy(200);
+      yield " rendering.";
+    }),
+    view: new RecordingView(),
+    cache: new MemoryCache(),
+    clock,
+    observer,
+    isCurrent: () => true,
+  });
+
+  await session.show(createInput());
+  clock.advanceBy(10_000);
+
+  assert.deepEqual(observer.summary(), [
+    "1:commandStart@0",
+    "1:prepared@100",
+    "1:requestStart@100",
+    "1:firstFragment@100",
+    "1:streamEnd@300",
+    "1:visible@300",
+    "1:cleared@10300",
+  ]);
+  const serialized = JSON.stringify(observer.events);
+  assert.doesNotMatch(serialized, /example\.ts|await update|Gates|rendering|workspace-1|editor-1/u);
+});
+
+test("reports a cache hit, a dismissal, and a failure with their phases", async () => {
+  const clock = new ManualClock();
+  const observer = new RecordingObserver();
+  let response = "Reusable explanation.";
+  const session = new SubtitleSession({
+    gateway: timedGateway(clock, async function* () {
+      yield response;
+    }),
+    view: new RecordingView(),
+    cache: new MemoryCache(),
+    clock,
+    observer,
+    isCurrent: () => true,
+  });
+
+  await session.show(createInput());
+  const afterFirst = observer.events.length;
+  await session.show(createInput());
+  session.dismiss();
+  assert.deepEqual(observer.summary().slice(afterFirst), [
+    "1:cancelled@100",
+    "1:cleared@100",
+    "2:commandStart@100",
+    "2:prepared@200",
+    "2:cacheHit@200",
+    "2:visible@200",
+    "2:cancelled@200",
+    "2:cleared@200",
+  ]);
+
+  response = "# heading";
+  const afterHit = observer.events.length;
+  await session.show(createInput({ selection: "other();" }));
+  assert.deepEqual(observer.summary().slice(afterHit), [
+    "3:commandStart@200",
+    "3:prepared@300",
+    "3:requestStart@300",
+    "3:firstFragment@300",
+    "3:streamEnd@300",
+    "3:failed(outputInvalid)@300",
+    "3:cleared@300",
+  ]);
 });
 
 test("a cache hit renders the completed text without fitting or streaming", async () => {

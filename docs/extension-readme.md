@@ -16,7 +16,7 @@ Disable `codeSubtitle.semanticContext` in user settings to omit semantic evidenc
 
 Code Subtitle does not modify source files, persist code or responses, or send telemetry. Model-provider data handling is governed by that provider and your organization. See the [VS Code Language Model API guide](https://code.visualstudio.com/api/extension-guides/ai/language-model).
 
-Output language follows VS Code's display language. Override it with `codeSubtitle.outputLanguage`; select a Copilot model ID with `codeSubtitle.model` if needed. Both are user-level settings.
+Output language follows VS Code's display language. Override it with `codeSubtitle.outputLanguage`; select a Copilot model ID with `codeSubtitle.model` if needed. Both are user-level settings. `codeSubtitle.timingLog` (default off) writes phase timings for each request to the Code Subtitle Timing output channel; it records only request ids, phase names, and milliseconds, never code, prompts, subtitles, or file names.
 
 This preview requires desktop VS Code 1.135 or newer. Long lines and narrow editors can clip line-end decorations. Display readability, screen-reader behavior, live-model quality, and performance still require manual acceptance. Notebook, browser, and Remote environments are outside initial validation.
 

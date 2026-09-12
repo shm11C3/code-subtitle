@@ -29,6 +29,10 @@ The same host also exercises real TypeScript provider commands and the semantic 
 
 For a visual inspection, set `CODE_SUBTITLE_VISUAL_CHECK=1` when running the command. Use the **Next** and **Finish** notification buttons to inspect the normal, long-line, and split-editor scenarios. This fixture is excluded from the VSIX.
 
+## Timing log
+
+Set `codeSubtitle.timingLog` to `true` to record phase timings for each subtitle request in the **Code Subtitle Timing** output channel. Each line has the form `request=<id> <event> +<ms since commandStart>ms` with the events listed in [Minimal design](minimal-design.md) §10. The log never contains code, prompts, subtitles, or file names, and no output channel is created while the setting is off. Use it with the measurement protocol in §10; `firstFragment` is the first rendered fragment, and a person still has to judge when the meaning became understandable.
+
 ## Manual acceptance
 
 Record the host version and platform. Check normal and long lines, narrow split editors, wrapping, light/dark/high-contrast themes, zoom, existing line-end decorations, and keyboard dismissal precedence. Check document content, dirty state, and Undo history before and after real command use.

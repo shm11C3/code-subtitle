@@ -97,6 +97,29 @@ export interface Clock {
   clearTimeout(handle: unknown): void;
 }
 
+export type SubtitleTimingEventName =
+  | "commandStart"
+  | "prepared"
+  | "cacheHit"
+  | "requestStart"
+  | "firstFragment"
+  | "streamEnd"
+  | "visible"
+  | "cleared"
+  | "cancelled";
+
+/**
+ * One content-free phase marker. `at` is a monotonic timestamp from the
+ * session clock; events never carry text, prompts, URIs, or file names.
+ */
+export type SubtitleTimingEvent =
+  | { requestId: number; at: number; name: SubtitleTimingEventName }
+  | { requestId: number; at: number; name: "failed"; code: FailureCode };
+
+export interface SubtitleObserver {
+  observe(event: SubtitleTimingEvent): void;
+}
+
 export interface SubtitleCache {
   get(request: PreparedRequest): string | undefined;
   put(request: PreparedRequest, text: string): void;

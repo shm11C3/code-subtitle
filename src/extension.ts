@@ -1,6 +1,11 @@
 import * as vscode from "vscode";
 import { createInput, fitInput, type InputSnapshot } from "./policy.js";
-import { SubtitleError, type SelectionRange, type SubtitleInput } from "./contracts.js";
+import {
+  SubtitleError,
+  type SelectionRange,
+  type SubtitleInput,
+  type SubtitleObserver,
+} from "./contracts.js";
 import { MemorySubtitleCache } from "./cache.js";
 import { SubtitleSession } from "./session.js";
 import { VscodeModelGateway, type VscodeModelGatewayOptions } from "./vscode-model.js";
@@ -8,6 +13,8 @@ import { VscodeSubtitleView } from "./vscode-view.js";
 import { VscodeSemanticContextProvider } from "./vscode-semantic.js";
 
 const DISCLOSURE_KEY = "codeSubtitle.semanticContextDisclosureShown";
+const TIMING_CHANNEL_NAME = "Code Subtitle Timing";
+const MAX_TRACKED_TIMING_REQUESTS = 16;
 
 interface ActiveRequest {
   readonly input: SubtitleInput;
@@ -119,7 +126,34 @@ export function activate(context: vscode.ExtensionContext): void {
     return isVisible(editor, input.anchorLine);
   };
 
-  const session = new SubtitleSession({ gateway, view, cache, isCurrent });
+  // Opt-in phase timing. Lines carry only the request id, event name, and
+  // milliseconds since the command started; never code, prompts, or paths.
+  const timingLogEnabled = (): boolean =>
+    vscode.workspace.getConfiguration("codeSubtitle").get<boolean>("timingLog", false);
+  let timingChannel: vscode.OutputChannel | undefined;
+  const timingStarts = new Map<number, number>();
+  const observer: SubtitleObserver = {
+    observe: (event) => {
+      if (!timingLogEnabled()) {
+        return;
+      }
+      timingChannel ??= vscode.window.createOutputChannel(TIMING_CHANNEL_NAME);
+      if (event.name === "commandStart") {
+        timingStarts.set(event.requestId, event.at);
+        while (timingStarts.size > MAX_TRACKED_TIMING_REQUESTS) {
+          const oldest = timingStarts.keys().next().value;
+          if (oldest === undefined) break;
+          timingStarts.delete(oldest);
+        }
+      }
+      const start = timingStarts.get(event.requestId);
+      const elapsed = start === undefined ? "?" : String(Math.round(event.at - start));
+      const label = event.name === "failed" ? `failed(${event.code})` : event.name;
+      timingChannel.appendLine(`request=${event.requestId} ${label} +${elapsed}ms`);
+    },
+  };
+
+  const session = new SubtitleSession({ gateway, view, cache, isCurrent, observer });
 
   const dismissActive = (): void => {
     activeRequest = undefined;
@@ -278,6 +312,9 @@ export function activate(context: vscode.ExtensionContext): void {
       session.dispose();
       gateway.dispose();
       view.dispose();
+      timingChannel?.dispose();
+      timingChannel = undefined;
+      timingStarts.clear();
       for (const [id] of editorsById) {
         editorsById.delete(id);
       }

@@ -31,6 +31,10 @@ A further regression test confirms that a dependency edit during an uncooperativ
 
 Revision: RED: a repeated command with semantic context enabled re-queried the providers before finding the cached result. GREEN: the cache lookup now precedes evidence collection and token fitting (session cycle 15); the repeated command makes no provider or model request.
 
+## Timing log
+
+RED: with `codeSubtitle.timingLog` enabled, the extension created no output channel and wrote nothing. GREEN: the extension injects a `SubtitleObserver` that lazily creates the **Code Subtitle Timing** channel and writes `request=<id> <event> +<ms>ms` lines; a companion test confirms that the default-off setting creates no channel. The line assertions exclude the fixture's source text, subtitle, and path.
+
 ## Parallel iteration
 
 `node scripts/test-slice.cjs <name>` transpiles and runs one role's behavioral test file independently. It intentionally skips type checking during the local RED/GREEN iteration so another role's intermediate type errors do not block unrelated behavior tests. Final acceptance requires the complete `npm run check` and `npm test`; a slice result alone is insufficient.
