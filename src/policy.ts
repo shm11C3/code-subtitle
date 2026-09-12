@@ -19,7 +19,12 @@ export interface InputSnapshot {
   outputLanguage: string;
 }
 
-const JAPANESE_LANGUAGE = /^ja(?:-|$)/i;
+/**
+ * Japanese, Chinese, and Korean carry comparable meaning per grapheme cluster,
+ * so they share the shorter target and hard limit. Only Japanese has been read
+ * by native readers so far; the zh/ko limits are an unvalidated extrapolation.
+ */
+const DENSE_SCRIPT_LANGUAGE = /^(?:ja|zh|ko)(?:-|$)/i;
 const CODE_FENCE = /```/u;
 const MARKDOWN_LINK = /\[[^\]\n]+\]\([^)\n]+\)|(?:https?:\/\/|www\.)\S+/iu;
 const MARKDOWN_HEADING = /^\s{0,3}#{1,6}(?:\s|$)/u;
@@ -57,12 +62,12 @@ export function normalizeOutput(text: string): string {
 
 /** Return the shorter prompt target for a language tag. */
 export function outputTarget(language: string): number {
-  return JAPANESE_LANGUAGE.test(language) ? 100 : 200;
+  return DENSE_SCRIPT_LANGUAGE.test(language) ? 100 : 200;
 }
 
 /** Return the hard product limit for a language tag. */
 export function outputLimit(language: string): number {
-  return JAPANESE_LANGUAGE.test(language) ? 200 : 400;
+  return DENSE_SCRIPT_LANGUAGE.test(language) ? 200 : 400;
 }
 
 /** Count user-visible grapheme clusters rather than UTF-16 code units. */

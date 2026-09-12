@@ -78,6 +78,12 @@ RED: Boundary tests required output at exactly 200 Japanese graphemes and 400 no
 
 GREEN: `validateOutput` enforces the inclusive hard caps with grapheme counting and allows inline backticks and emphasis as literal text. `buildPrompt` asks for about `outputTarget` graphemes, communicates the `outputLimit` hard cap, and keeps the one-sentence requirement. `POLICY_VERSION` is `4` so cached responses use the revised output contract.
 
+## CJK output limit cycle
+
+RED: A new test required `zh`, `zh-*`, `ko`, and `ko-*` tags to share the Japanese 100-grapheme target and 200-grapheme hard limit while `zu`, `kok`, `jav`, and `auto` kept 200/400. It failed because only `ja` matched the dense-script pattern.
+
+GREEN: `outputTarget` and `outputLimit` use one `ja|zh|ko` language pattern. The prompt's limit instruction follows automatically. This is a character-density extrapolation; native-reader validation for Chinese and Korean has not been performed.
+
 ## Cache TDD cycles
 
 The cache tests use a controllable clock and fake prepared requests. They never persist data to disk or call a model.

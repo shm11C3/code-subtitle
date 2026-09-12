@@ -23,6 +23,17 @@ test("uses separate language-specific output targets and hard limits", () => {
   assert.equal(outputLimit("en-US"), 400);
 });
 
+test("treats Chinese and Korean like Japanese for the target and the hard limit", () => {
+  for (const language of ["zh", "zh-CN", "zh-Hant-TW", "ko", "ko-KR", "JA"]) {
+    assert.equal(outputTarget(language), 100, language);
+    assert.equal(outputLimit(language), 200, language);
+  }
+  for (const language of ["zu", "kok", "jav", "en", "auto", ""]) {
+    assert.equal(outputTarget(language), 200, language);
+    assert.equal(outputLimit(language), 400, language);
+  }
+});
+
 test("counts grapheme clusters rather than UTF-16 code units", () => {
   assert.equal(graphemeLength("👍🏽e\u0301"), 2);
 });
@@ -388,7 +399,7 @@ test("bounds and sanitizes semantic evidence before it reaches the prompt", () =
 });
 
 test("includes the validator's language-specific display limit in the prompt", () => {
-  for (const outputLanguage of ["ja", "ja-JP", "en-US", "fr"]) {
+  for (const outputLanguage of ["ja", "ja-JP", "zh-CN", "ko", "en-US", "fr"]) {
     const input = createInput({
       text: "return normalize(input);",
       selections: [{ start: { line: 0, character: 0 }, end: { line: 0, character: 24 } }],

@@ -18,7 +18,7 @@ When running the set in the product, put each case in one isolated file and sele
 
 Accept a subtitle only when all of these hold:
 
-- It is one concise plain-text sentence in the requested language and fits the current output limit: 400 grapheme clusters for non-Japanese output or 200 for Japanese output. The prompt still targets 200 and 100 respectively.
+- It is one concise plain-text sentence in the requested language and fits the current output limit: 200 grapheme clusters for Japanese, Chinese, and Korean output or 400 for other languages. The prompt still targets 100 and 200 respectively. The Chinese and Korean limits are unvalidated by native readers (principle 5); check them with the live harness before claiming quality for those languages.
 - For code selections, it names an observable responsibility, invariant, tradeoff, boundary, or failure behavior that helps an engineer read the next line; a faithful comment translation or bounded unknown-context description may pass without a deeper insight.
 - It preserves identifiers when they carry meaning, along with negation, conditions, counts, and caveats.
 - It stays within the selected code and bounded context; it does not assert the author's intent, diagnose a bug, or promise a project-wide property without evidence.
