@@ -4,21 +4,43 @@ Issue [#1](https://github.com/shm11C3/code-subtitle/issues/1) prepares the first
 
 ## Release policy
 
-This repository follows [md-hinagata's publishing workflow](https://github.com/shm11C3/md-hinagata/blob/main/.github/workflows/publish-vscode-extension.yml):
+This repository follows the tag/manual publishing flow in [md-hinagata's workflow](https://github.com/shm11C3/md-hinagata/blob/main/.github/workflows/publish-vscode-extension.yml), with an independent versioning policy:
 
 - Publish on a `v*.*.*` tag push or an explicit workflow dispatch.
-- Use plain `major.minor.patch` versions. A tag must be exactly `v` plus the manifest version.
+- Use numeric `X.Y.Z` product release numbers without suffixes. A tag must be exactly `v` plus the manifest version. This project does not claim strict Semantic Versioning compliance.
 - Reserve `0.0.x` for local development. The first Marketplace version is `0.1.0`.
-- Odd minor versions (`0.1.x`, `0.3.x`) are Marketplace pre-releases; even minors (`0.2.x`, `0.4.x`) are stable releases.
+- Explicitly set `releaseChannel` in `package.json` to `pre-release` or `stable`. This repository-specific field controls local packaging and CI publication; missing or invalid values are rejected. No part of the version number selects the channel.
+- Maintain one active release stream for now: start with pre-releases, then move to the stable channel when ready. Do not maintain simultaneous stable and pre-release lines without revisiting the policy.
 - Keep `preview: true` for the first release. The preview label and Marketplace pre-release channel are separate concepts.
 - Keep `private: true` to prevent accidental npm publication; it does not prevent VSIX distribution.
 
 `scripts/release.cjs` supplies the version, channel, and VSIX name for both local packaging and CI. The workflow checks types, lint, formatting, and tests, then publishes that same packaged VSIX. It does not rebuild during publishing, create GitHub Releases, generate changelogs, or bump versions automatically. The reference repository's monorepo builds and PR-label automation are not needed here.
 
+### Choosing a version and channel
+
+Use `X` for major changes to how the product is used, `Y` for feature additions or substantial improvements, and `Z` for fixes. Reset the lower components when increasing a higher component. During initial `0.x` development, use `Y` for substantial changes and document their impact. Decide readiness for `1.0.0` separately from entry into the stable Marketplace channel.
+
+For example:
+
+| Version | `releaseChannel` | Purpose                      |
+| ------- | ---------------- | ---------------------------- |
+| `0.1.0` | `pre-release`    | First public preview         |
+| `0.1.1` | `pre-release`    | Preview fixes                |
+| `0.2.0` | `stable`         | First stable-channel release |
+| `0.2.1` | `stable`         | Fixes                        |
+| `0.3.0` | `stable`         | Feature additions            |
+
+These are examples, not a fixed schedule. The initial manifest uses `"releaseChannel": "pre-release"`. To switch channels, change that field and increment the version in the same reviewed release change. Keep the setting in the tagged commit so local packaging, tag-triggered publication, and manual dispatch all use the same channel.
+
+Marketplace [does not support SemVer pre-release suffixes](https://code.visualstudio.com/api/working-with-extensions/publishing-extension#pre-release-extensions), and the same version cannot be reused between channels. Give every publication in this single stream a higher numeric version than the previous publication, including when changing channels. Pre-release users can receive a higher stable version; this transition is intentional for this policy.
+
+Treat compatibility separately from numbering: preserve existing setting keys, values, and command IDs where practical; provide migration or deprecation guidance when changing them. Record changes that require user action in the release notes. A larger version number alone does not make an automatic update safe. VS Code host compatibility remains declared through `engines.vscode`.
+
 ## Prepare a release
 
 1. Complete the first-release checklist below, and record product acceptance in [validation](validation.md).
 2. Set the version in both `package.json` and `package-lock.json`, for example with `npm version 0.1.1 --no-git-tag-version`.
+   Explicitly review `package.json`'s `releaseChannel`; change it to `stable` when moving out of the pre-release stream. The `preview` label is a separate product presentation decision.
 3. Run `node scripts/release.cjs validate`, `npm run check`, `npm run lint`, `npm run fmt:check`, `npm test`, and `npm run package`.
 4. Inspect and install the generated `code-subtitle-<version>.vsix`. Run the extension-host smoke test with the public extension ID. Preserve the documented limitations.
 5. Review and merge the release changes before creating and pushing the matching tag. A tag push publishes to Marketplace.

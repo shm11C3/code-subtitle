@@ -143,5 +143,6 @@
     "virtualWorkspaces": {
       "supported": false
     }
-  }
+  },
+  "releaseChannel": "pre-release"
 }

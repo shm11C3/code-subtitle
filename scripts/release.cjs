@@ -2,7 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 
-function releaseInfo(version, tag) {
+function releaseInfo(version, channel, tag) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) {
     throw new Error("Release versions must be major.minor.patch without a suffix.");
   }
@@ -10,12 +10,15 @@ function releaseInfo(version, tag) {
   if (major === 0n && minor === 0n) {
     throw new Error("0.0.x is local-only; use 0.1.0 or later for publication.");
   }
+  if (channel !== "pre-release" && channel !== "stable") {
+    throw new Error('package.json releaseChannel must be "pre-release" or "stable".');
+  }
   if (tag !== undefined && tag !== `v${version}`) {
     throw new Error(`Tag ${tag} does not match package.json version ${version}.`);
   }
   return {
     version,
-    channel: minor % 2n === 1n ? "pre-release" : "stable",
+    channel,
     packagePath: `code-subtitle-${version}.vsix`,
   };
 }
@@ -25,7 +28,7 @@ if (require.main === module) {
     const root = path.resolve(__dirname, "..");
     const manifest = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
     const tag = process.env.GITHUB_REF_TYPE === "tag" ? process.env.GITHUB_REF_NAME : undefined;
-    const info = releaseInfo(manifest.version, tag);
+    const info = releaseInfo(manifest.version, manifest.releaseChannel, tag);
     if (process.argv[2] === "validate") {
       for (const field of [
         "publisher",
