@@ -69,7 +69,7 @@ The [official publishing guide](https://code.visualstudio.com/api/working-with-e
 - [x] Remove missing-repository and missing-license packaging bypasses.
 - [x] Prepare `0.1.0` on the pre-release channel with `preview: true`.
 - [x] Add a tag/manual publish workflow with version and icon validation.
-- [x] Select concept A (Inline Caption), refine it for small sizes, and add `resources/icon.png` as the approved 128 × 128 manifest icon.
+- [x] Add the approved 128 × 128 Marketplace icon at `resources/icon.png`.
 - [x] Record and embed the core-flow GIF in the extension README, with a fixed-response disclosure.
 - [ ] Finish the relevant manual product acceptance and record results.
 - [ ] Configure publisher credentials and perform the first Marketplace release.
