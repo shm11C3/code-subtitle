@@ -10,6 +10,8 @@ import type {
 import { SubtitleError as SubtitleErrorClass } from "./contracts.js";
 import { buildPrompt } from "./policy.js";
 
+const COPILOT_VENDOR = "copilot";
+
 export interface FitInput {
   (
     input: SubtitleInput,
@@ -33,6 +35,9 @@ export interface VscodeModelAccess {
 
 export interface ModelPickerItem extends vscode.QuickPickItem {
   readonly modelId: string;
+  /** Vendor-qualified identity used to disambiguate models from different providers. */
+  readonly modelKey?: string;
+  readonly modelVendor?: string;
 }
 
 export interface VscodeModelPicker {
@@ -43,7 +48,7 @@ export interface VscodeModelPicker {
   ): Thenable<ModelPickerItem | undefined>;
 }
 
-/** Remembers the model chosen for `codeSubtitle.model: "auto"` across sessions. */
+/** Remembers the vendor-qualified model chosen for `codeSubtitle.model: "auto"` across sessions. */
 export interface ModelChoiceStore {
   get(): string | undefined;
   set(id: string | undefined): PromiseLike<void> | void;
@@ -63,14 +68,14 @@ export interface VscodeModelGatewayOptions {
   readonly choiceStore?: ModelChoiceStore;
 }
 
-/** Adapts the Copilot-only VS Code Language Model API to the core gateway. */
+/** Adapts VS Code Language Model API providers to the core gateway. */
 export class VscodeModelGateway implements ModelGateway {
   private modelSetting: string;
   private selectedModel: vscode.LanguageModelChat | undefined;
   private disposed = false;
 
   constructor(private readonly options: VscodeModelGatewayOptions) {
-    this.modelSetting = options.modelSetting ?? "auto";
+    this.modelSetting = normalizeModelSetting(options.modelSetting);
   }
 
   async prepare(input: SubtitleInput, signal: AbortSignal): Promise<PreparedRequest> {
@@ -122,7 +127,7 @@ export class VscodeModelGateway implements ModelGateway {
   }
 
   setModelSetting(value: string): void {
-    const next = value.trim() || "auto";
+    const next = normalizeModelSetting(value);
     if (next === this.modelSetting) {
       return;
     }
@@ -140,7 +145,7 @@ export class VscodeModelGateway implements ModelGateway {
    */
   async chooseModel(signal: AbortSignal): Promise<string | undefined> {
     this.ensureActive();
-    const models = await this.selectModels({ vendor: "copilot" }, signal);
+    const models = await this.selectAutoModels(signal);
     if (models.length === 0) {
       throw new SubtitleErrorClass("modelUnavailable");
     }
@@ -148,7 +153,7 @@ export class VscodeModelGateway implements ModelGateway {
     if (selected === undefined) {
       return undefined;
     }
-    await this.rememberChoice(selected.id);
+    await this.rememberChoice(modelKey(selected));
     if (this.modelSetting === "auto") {
       this.selectedModel = selected;
     }
@@ -165,31 +170,34 @@ export class VscodeModelGateway implements ModelGateway {
       return this.selectedModel;
     }
 
-    const selector: vscode.LanguageModelChatSelector = { vendor: "copilot" };
-    if (this.modelSetting !== "auto") {
-      selector.id = this.modelSetting;
-    }
-    const models = await this.selectModels(selector, signal);
-    throwIfAborted(signal);
-    if (models.length === 0) {
-      throw new SubtitleErrorClass("modelUnavailable");
-    }
-
     let selected: vscode.LanguageModelChat | undefined;
     if (this.modelSetting !== "auto") {
-      selected = models.find((model) => model.id === this.modelSetting);
+      const configured = parseConfiguredModel(this.modelSetting);
+      if (configured === undefined) {
+        throw new SubtitleErrorClass("modelUnavailable");
+      }
+      const models = await this.selectModels(configured, signal);
+      selected = models.find(
+        (model) => model.vendor === configured.vendor && model.id === configured.id,
+      );
       if (!selected) {
         throw new SubtitleErrorClass("modelUnavailable");
       }
     } else {
+      const models = await this.selectAutoModels(signal);
+      if (models.length === 0) {
+        throw new SubtitleErrorClass("modelUnavailable");
+      }
       const stored = this.options.choiceStore?.get();
-      selected = stored === undefined ? undefined : models.find((model) => model.id === stored);
+      const storedKey = storedModelKey(stored);
+      selected =
+        storedKey === undefined ? undefined : models.find((model) => modelKey(model) === storedKey);
       if (!selected) {
         selected = await this.pickModel(models, signal);
         if (!selected) {
           throw abortError();
         }
-        await this.rememberChoice(selected.id);
+        await this.rememberChoice(modelKey(selected));
       }
     }
 
@@ -203,8 +211,10 @@ export class VscodeModelGateway implements ModelGateway {
   ): Promise<vscode.LanguageModelChat | undefined> {
     const items = models.map((model) => ({
       label: model.name || model.id,
-      description: model.id,
+      description: modelKey(model),
       modelId: model.id,
+      modelKey: modelKey(model),
+      modelVendor: model.vendor,
     }));
     const pickerSource = this.options.runtime.createCancellationTokenSource();
     const stopPicker = bridgeAbort(signal, pickerSource);
@@ -214,7 +224,7 @@ export class VscodeModelGateway implements ModelGateway {
         items,
         {
           canPickMany: false,
-          placeHolder: "Choose a Copilot model for Code Subtitle",
+          placeHolder: "Choose a language model for Code Subtitle",
           ignoreFocusOut: true,
         },
         pickerSource.token,
@@ -226,7 +236,13 @@ export class VscodeModelGateway implements ModelGateway {
     if (!choice) {
       return undefined;
     }
-    const selected = models.find((model) => model.id === choice.modelId);
+    const selected = choice.modelKey
+      ? models.find((model) => modelKey(model) === choice.modelKey)
+      : models.find(
+          (model) =>
+            model.id === choice.modelId &&
+            (choice.modelVendor === undefined || model.vendor === choice.modelVendor),
+        );
     if (!selected) {
       throw new SubtitleErrorClass("modelUnavailable");
     }
@@ -241,8 +257,16 @@ export class VscodeModelGateway implements ModelGateway {
     }
   }
 
+  private async selectAutoModels(signal: AbortSignal): Promise<vscode.LanguageModelChat[]> {
+    const copilotModels = await this.selectModels({ vendor: COPILOT_VENDOR }, signal);
+    if (copilotModels.length > 0) {
+      return copilotModels;
+    }
+    return this.selectModels(undefined, signal);
+  }
+
   private async selectModels(
-    selector: vscode.LanguageModelChatSelector,
+    selector: vscode.LanguageModelChatSelector | undefined,
     signal: AbortSignal,
   ): Promise<vscode.LanguageModelChat[]> {
     try {
@@ -367,6 +391,37 @@ function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) {
     throw abortError();
   }
+}
+
+function normalizeModelSetting(value: string | undefined): string {
+  return value?.trim() || "auto";
+}
+
+function parseConfiguredModel(value: string): vscode.LanguageModelChatSelector | undefined {
+  const separator = value.indexOf(":");
+  if (separator < 0) {
+    return value.length === 0 ? undefined : { vendor: COPILOT_VENDOR, id: value };
+  }
+
+  const vendor = value.slice(0, separator).trim();
+  const id = value.slice(separator + 1).trim();
+  return vendor.length === 0 || id.length === 0 ? undefined : { vendor, id };
+}
+
+function modelKey(model: { readonly vendor: string; readonly id: string }): string {
+  return `${model.vendor}:${model.id}`;
+}
+
+function storedModelKey(value: string | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return undefined;
+  }
+  const parsed = parseConfiguredModel(trimmed);
+  return parsed?.id === undefined ? undefined : `${parsed.vendor}:${parsed.id}`;
 }
 
 function abortError(): Error {

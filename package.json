@@ -89,7 +89,7 @@
           "type": "string",
           "default": "auto",
           "scope": "application",
-          "description": "Copilot model ID, or auto to use the model chosen once with Code Subtitle: Choose Model and remembered across restarts."
+          "description": "Language model ID, vendor:id, or auto to prefer Copilot and otherwise choose from available providers."
         },
         "codeSubtitle.semanticContext": {
           "type": "boolean",

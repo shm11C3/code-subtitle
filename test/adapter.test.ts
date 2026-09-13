@@ -55,11 +55,12 @@ function createModel(
   id: string,
   stream: AsyncIterable<string>,
   seen: { countTokens: vscode.CancellationToken[]; sendRequests: vscode.CancellationToken[] },
+  vendor = "copilot",
 ): vscode.LanguageModelChat {
   return {
     id,
     name: id,
-    vendor: "copilot",
+    vendor,
     family: id,
     version: "1",
     maxInputTokens: 1000,
@@ -149,6 +150,40 @@ test("configured model IDs resolve exactly and stream through the gateway", asyn
   );
 });
 
+test("a vendor-qualified model setting selects a non-Copilot provider", async () => {
+  const tokenSources: FakeTokenSource[] = [];
+  const seen = { countTokens: [], sendRequests: [] } as {
+    countTokens: vscode.CancellationToken[];
+    sendRequests: vscode.CancellationToken[];
+  };
+  const model = createModel(
+    "exact-model",
+    (async function* () {
+      yield "ok";
+    })(),
+    seen,
+    "openai",
+  );
+  const selectors: (vscode.LanguageModelChatSelector | undefined)[] = [];
+  const base = createOptions(model, tokenSources, undefined, "openai:exact-model");
+  const gateway = new VscodeModelGateway({
+    ...base,
+    runtime: {
+      ...base.runtime,
+      selectChatModels: async (selector) => {
+        selectors.push(selector);
+        return [model];
+      },
+    },
+  });
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+
+  assert.deepEqual(selectors, [{ vendor: "openai", id: "exact-model" }]);
+  assert.equal(prepared.model.vendor, "openai");
+  assert.equal(prepared.model.id, "exact-model");
+});
+
 test("auto selection asks once, then reuses the selected model for the session", async () => {
   const tokenSources: FakeTokenSource[] = [];
   const seen = { countTokens: [], sendRequests: [] } as {
@@ -189,6 +224,94 @@ test("auto selection asks once, then reuses the selected model for the session",
   assert.equal(first.model.id, "auto-model");
   assert.equal(second.model.id, "auto-model");
   assert.equal(picks, 1);
+});
+
+test("auto selection prefers Copilot when it is available", async () => {
+  const copilot = createCatalog(["copilot-model"])[0]!;
+  const other = createModel(
+    "other-model",
+    (async function* () {
+      yield "ok";
+    })(),
+    { countTokens: [], sendRequests: [] },
+    "openai",
+  );
+  const selectors: (vscode.LanguageModelChatSelector | undefined)[] = [];
+  let pickedItems: readonly ModelPickerItem[] = [];
+  const base = createOptions(copilot, [], undefined, "auto", {
+    showQuickPick: async (items) => {
+      pickedItems = items;
+      return items[0];
+    },
+  });
+  const gateway = new VscodeModelGateway({
+    ...base,
+    runtime: {
+      ...base.runtime,
+      selectChatModels: async (selector) => {
+        selectors.push(selector);
+        return selector?.vendor === "copilot" ? [copilot] : [copilot, other];
+      },
+    },
+  });
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+
+  assert.deepEqual(selectors, [{ vendor: "copilot" }]);
+  assert.deepEqual(
+    pickedItems.map((item) => item.modelKey),
+    ["copilot:copilot-model"],
+  );
+  assert.equal(prepared.model.vendor, "copilot");
+});
+
+test("auto selection lists every vendor when Copilot is unavailable", async () => {
+  const models = [
+    createModel(
+      "shared-model",
+      (async function* () {
+        yield "ok";
+      })(),
+      { countTokens: [], sendRequests: [] },
+      "openai",
+    ),
+    createModel(
+      "shared-model",
+      (async function* () {
+        yield "ok";
+      })(),
+      { countTokens: [], sendRequests: [] },
+      "ollama",
+    ),
+  ];
+  const selectors: (vscode.LanguageModelChatSelector | undefined)[] = [];
+  let pickedItems: readonly ModelPickerItem[] = [];
+  const base = createOptions(models[0]!, [], undefined, "auto", {
+    showQuickPick: async (items) => {
+      pickedItems = items;
+      return items[1];
+    },
+  });
+  const gateway = new VscodeModelGateway({
+    ...base,
+    runtime: {
+      ...base.runtime,
+      selectChatModels: async (selector) => {
+        selectors.push(selector);
+        return selector?.vendor === "copilot" ? [] : models;
+      },
+    },
+  });
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+
+  assert.deepEqual(selectors, [{ vendor: "copilot" }, undefined]);
+  assert.deepEqual(
+    pickedItems.map((item) => item.modelKey),
+    ["openai:shared-model", "ollama:shared-model"],
+  );
+  assert.equal(prepared.model.vendor, "ollama");
+  assert.equal(prepared.model.id, "shared-model");
 });
 
 test("provider failure becomes a typed safe subtitle error", async () => {
@@ -554,6 +677,34 @@ test("a stored automatic choice is reused across gateways without the picker", a
   assert.deepEqual(store.writes, []);
 });
 
+test("a stored vendor-qualified automatic choice is reused without the picker", async () => {
+  const [model] = createCatalog(["remembered-model"]);
+  (model as { vendor: string }).vendor = "openai";
+  let picks = 0;
+  const store = createChoiceStore("openai:remembered-model");
+  const base = createOptions(model!, [], undefined, "auto", {
+    showQuickPick: async () => {
+      picks += 1;
+      return undefined;
+    },
+  });
+  const gateway = new VscodeModelGateway({
+    ...base,
+    runtime: {
+      ...base.runtime,
+      selectChatModels: async (selector) => (selector?.vendor === "copilot" ? [] : [model!]),
+    },
+    choiceStore: store,
+  });
+
+  const prepared = await gateway.prepare(createInput(), new AbortController().signal);
+
+  assert.equal(prepared.model.vendor, "openai");
+  assert.equal(prepared.model.id, "remembered-model");
+  assert.equal(picks, 0);
+  assert.deepEqual(store.writes, []);
+});
+
 test("a stale stored choice falls back to the picker and is overwritten", async () => {
   const [model] = createCatalog(["current-model"]);
   let picks = 0;
@@ -571,8 +722,8 @@ test("a stale stored choice falls back to the picker and is overwritten", async 
   const prepared = await gateway.prepare(createInput(), new AbortController().signal);
   assert.equal(prepared.model.id, "current-model");
   assert.equal(picks, 1);
-  assert.deepEqual(store.writes, ["current-model"]);
-  assert.equal(store.get(), "current-model");
+  assert.deepEqual(store.writes, ["copilot:current-model"]);
+  assert.equal(store.get(), "copilot:current-model");
 });
 
 test("an explicit model setting bypasses the stored automatic choice", async () => {
@@ -614,11 +765,39 @@ test("choosing a model explicitly reopens the picker and updates the stored choi
   const chosen = await gateway.chooseModel(new AbortController().signal);
   assert.equal(chosen, "second-model");
   assert.equal(picks, 1);
-  assert.deepEqual(store.writes, ["second-model"]);
+  assert.deepEqual(store.writes, ["copilot:second-model"]);
 
   const prepared = await gateway.prepare(createInput(), new AbortController().signal);
   assert.equal(prepared.model.id, "second-model");
   assert.equal(picks, 1);
+});
+
+test("choosing a model without Copilot stores its vendor-qualified key", async () => {
+  const model = createModel(
+    "local-model",
+    (async function* () {
+      yield "ok";
+    })(),
+    { countTokens: [], sendRequests: [] },
+    "ollama",
+  );
+  const store = createChoiceStore();
+  const base = createOptions(model, [], undefined, "auto", {
+    showQuickPick: async (items) => items[0],
+  });
+  const gateway = new VscodeModelGateway({
+    ...base,
+    runtime: {
+      ...base.runtime,
+      selectChatModels: async (selector) => (selector?.vendor === "copilot" ? [] : [model]),
+    },
+    choiceStore: store,
+  });
+
+  const chosen = await gateway.chooseModel(new AbortController().signal);
+
+  assert.equal(chosen, "local-model");
+  assert.deepEqual(store.writes, ["ollama:local-model"]);
 });
 
 test("a model catalog change keeps the stored choice and revalidates it silently", async () => {

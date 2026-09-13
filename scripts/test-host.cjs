@@ -32,6 +32,8 @@ if (semanticHost !== "builtin" && semanticHost !== "native") {
     `${JSON.stringify(
       {
         "js/ts.experimental.useTsgo": semanticHost === "native",
+        "codeSubtitle.model": "code-subtitle-test:test-model",
+        "codeSubtitle.semanticContext": false,
         "diffEditor.renderSideBySide": process.env.CODE_SUBTITLE_DIFF_MODE !== "inline",
       },
       null,
@@ -40,6 +42,11 @@ if (semanticHost !== "builtin" && semanticHost !== "native") {
     "utf8",
   );
   fs.mkdirSync(extensionsDir, { recursive: true });
+  fs.cpSync(
+    path.join(root, "test", "host", "provider"),
+    path.join(extensionsDir, "code-subtitle-tests.code-subtitle-test-provider-0.0.0"),
+    { recursive: true, force: true },
+  );
 
   if (semanticHost === "native") {
     const nativeExtension = findNativeExtension();

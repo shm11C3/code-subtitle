@@ -1,8 +1,15 @@
 # Code Subtitle — Local Preview
 
-Select code or a short comment, or simply place the cursor on a line, and run **Code Subtitle: Show Subtitle** to display a temporary, streamed explanation beside it. With no selection, the whole current line is used.
+[![CI](https://github.com/shm11C3/code-subtitle/actions/workflows/ci.yml/badge.svg)](https://github.com/shm11C3/code-subtitle/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/shm11C3/code-subtitle/blob/main/LICENSE)
+
+## What it does
+
+Select code or a short comment, or place the cursor on a non-empty line, and run **Code Subtitle: Show Subtitle** to display a temporary, streamed explanation beside it.
 
 Subtitles are aimed at experienced engineers reading OSS or reviewing code. They connect a visible mechanism to one useful responsibility, invariant, failure boundary, or tradeoff. For example, a request-ID guard can explain why a late response cannot overwrite the current view. The model is instructed to avoid syntax narration and unsupported design intent; comments alone receive a faithful short translation.
+
+## How to use it
 
 Use `Shift+Alt+E` on Windows/Linux or `Ctrl+Alt+E` on macOS, or pick **Show Subtitle** from the editor's right-click menu. Use **Dismiss Subtitle** or `Esc` to clear it. Selection changes, edits, editor switches, and the display deadline (10 to 30 seconds, scaled to the subtitle's length) also clear the subtitle. **Clear Cache** clears the in-memory results and cancels active generation.
 
@@ -10,7 +17,11 @@ When a request cannot complete for a reason you can fix in the editor (selection
 
 The Windows/Linux default avoids the `Alt+E` menu-bar mnemonic that opens the Edit menu; it has not yet been verified on Windows or Linux hardware. To change the shortcut, open **Preferences: Open Keyboard Shortcuts** from the Command Palette. On macOS, you can also press `Cmd+K`, then `Cmd+S`. Search for `Code Subtitle: Show Subtitle`, select its pencil icon, press your preferred key combination, and press Enter. VS Code saves the override in your user keyboard settings. The same screen lets you change, remove, or reset the binding and inspect conflicts with other commands.
 
-The extension uses a GitHub Copilot model available in VS Code. It has no API-key setting or separate backend. On first use, choose a model and complete VS Code's consent flow if prompted. The choice is remembered across restarts while it is still available; run **Code Subtitle: Choose Model** to change it. Sign-in, model access, and available quota may be required.
+## Model and language
+
+The extension uses a language model exposed through VS Code. It has no API-key setting or separate backend. With `auto`, Copilot models are preferred; if Copilot is unavailable, the picker lists models from every installed provider. On first use, choose a model and complete that provider's VS Code consent or configuration flow if prompted. The vendor-qualified choice is remembered across restarts while it is still available; run **Code Subtitle: Choose Model** to change it. Sign-in, model access, configuration, and available quota may be required, depending on the provider.
+
+## Data and privacy
 
 Only explicit commands send the selected text and up to five adjacent lines on each side. Optional semantic context also includes bounded language-service type information, documentation, and one-hop definition excerpts from the same workspace folder. It queries at most three selected identifiers, waits at most 600 ms, and includes up to 4,000 UTF-16 code units of extra evidence. Missing or slow providers fall back to the selection and adjacent lines. Untitled files and untrusted workspaces use that basic path as well.
 
@@ -18,8 +29,23 @@ Disable `codeSubtitle.semanticContext` in user settings to omit semantic evidenc
 
 Code Subtitle does not modify source files, persist code or responses, or send telemetry. Model-provider data handling is governed by that provider and your organization. See the [VS Code Language Model API guide](https://code.visualstudio.com/api/extension-guides/ai/language-model).
 
-Output language follows VS Code's display language. Override it with `codeSubtitle.outputLanguage`; pin a Copilot model ID with `codeSubtitle.model` if needed, which takes precedence over the remembered choice. Both are user-level settings. `codeSubtitle.timingLog` (default off) writes phase timings for each request to the Code Subtitle Timing output channel; it records only request ids, phase names, and milliseconds, never code, prompts, subtitles, or file names.
+Output language follows VS Code's display language. Override it with `codeSubtitle.outputLanguage`. Set `codeSubtitle.model` to a bare Copilot model ID or a vendor-qualified `vendor:id` value for another provider; this explicit setting takes precedence over the remembered choice. Both are user-level settings.
+
+## Settings
+
+```json
+{
+  "codeSubtitle.outputLanguage": "auto",
+  "codeSubtitle.model": "auto",
+  "codeSubtitle.semanticContext": true,
+  "codeSubtitle.timingLog": false
+}
+```
+
+Set `codeSubtitle.outputLanguage` to a language tag such as `ja` or `en`. Set `codeSubtitle.semanticContext` to `false` when requests should contain only the selection and adjacent lines. Set `codeSubtitle.timingLog` to `true` to record content-free phase timings in the **Code Subtitle Timing** output channel; it records only request ids, phase names, and milliseconds, never code, prompts, subtitles, or file names.
+
+## Limitations
 
 This preview requires desktop VS Code 1.135 or newer. Long lines and narrow editors can clip line-end decorations. Display readability, screen-reader behavior, live-model quality, and performance still require manual acceptance. Notebook, browser, and Remote environments are outside initial validation.
 
-This is a locally packaged development preview with a placeholder publisher. It has not been published to a marketplace, and an OSS license has not yet been selected.
+This is a locally packaged development preview with a placeholder publisher. It has not been published to the VS Code Marketplace yet. The source is available under the [MIT License](https://github.com/shm11C3/code-subtitle/blob/main/LICENSE).

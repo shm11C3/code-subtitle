@@ -1,0 +1,21 @@
+{
+  "name": "code-subtitle-test-provider",
+  "displayName": "Code Subtitle Test Language Model Provider",
+  "version": "0.0.0",
+  "publisher": "code-subtitle-tests",
+  "main": "./extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "code-subtitle-test",
+        "displayName": "Code Subtitle Test Provider"
+      }
+    ]
+  },
+  "activationEvents": [
+    "*"
+  ],
+  "engines": {
+    "vscode": "^1.135.0"
+  }
+}

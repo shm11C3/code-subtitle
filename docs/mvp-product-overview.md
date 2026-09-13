@@ -54,7 +54,7 @@ Select the most useful responsibility, invariant, failure boundary, or concrete 
 | End                         | Cancellation, discarding stale responses, and a short display expiry                                                  |
 | Reuse                       | Keep only successful short responses in workspace-separated memory                                                    |
 | Configuration               | Output-language/model overrides and a semantic-context switch; bounded semantic context is enabled by default         |
-| AI use                      | VS Code Language Model API; no custom API key or custom backend                                                       |
+| AI use                      | VS Code Language Model API; Copilot preferred, other registered providers supported; no custom API key or backend     |
 
 The Windows/Linux shortcut avoids the `Alt+E` menu-bar mnemonic and has not been verified on real Windows/Linux hardware. Readability for long lines and narrow split editors is an acceptance criterion for the rendering approach. Do not assume that a stable API can reserve an arbitrary two-line area; perform display validation at the beginning of implementation.
 
@@ -66,7 +66,7 @@ Formal support for Notebooks, the browser version, and Remote environments is ou
 
 ## Onboarding and failure experience
 
-Code Subtitle does not require an API key. The standard path requires a Copilot model available through VS Code and permission to use it. On first use, briefly explain the range that will be sent and leave any required consent for model use to VS Code's mechanisms.
+Code Subtitle does not require an API key. The standard path prefers a Copilot model, but any language model exposed through VS Code can be selected with `vendor:id` or from the fallback picker. On first use, briefly explain the range that will be sent and leave provider-specific consent or configuration to VS Code's mechanisms.
 
 If no model is available, consent is denied, the quota is exceeded, or the network is disconnected, briefly state the reason and the next action. Guidance the reader can act on inside the editor (selection, input size, unusable or overlong output, timeout, or a failed request) appears in the subtitle slot beside the code and clears itself after a few seconds; failures that need action outside the editor (no model, access denied, blocked or exhausted quota) use a notification. Do not automatically retry failures in a way that consumes reading time or quota. Treat cancellation caused by a selection change as normal operation and show no notification.
 
