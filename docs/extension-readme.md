@@ -1,4 +1,4 @@
-# Code Subtitle — Local Preview
+# Code Subtitle — Preview
 
 [![CI](https://github.com/shm11C3/code-subtitle/actions/workflows/ci.yml/badge.svg)](https://github.com/shm11C3/code-subtitle/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/shm11C3/code-subtitle/blob/main/LICENSE)
@@ -10,6 +10,10 @@ Select code or a short comment, or place the cursor on a non-empty line, and run
 Subtitles are aimed at experienced engineers reading OSS or reviewing code. They connect a visible mechanism to one useful responsibility, invariant, failure boundary, or tradeoff. For example, a request-ID guard can explain why a late response cannot overwrite the current view. The model is instructed to avoid syntax narration and unsupported design intent; comments alone receive a faithful short translation.
 
 ## How to use it
+
+![Select code, run Show Subtitle, and press Esc to dismiss the subtitle.](https://raw.githubusercontent.com/shm11C3/code-subtitle/main/docs/media/code-subtitle-demo.gif)
+
+Recorded in VS Code using a fixed-response demo provider. The animation shows the real extension UI; response text and timing are illustrative, not a live-model quality or speed measurement.
 
 Use `Shift+Alt+E` on Windows/Linux or `Ctrl+Alt+E` on macOS, or pick **Show Subtitle** from the editor's right-click menu. Use **Dismiss Subtitle** or `Esc` to clear it. Selection changes, edits, editor switches, and the display deadline (10 to 30 seconds, scaled to the subtitle's length) also clear the subtitle. **Clear Cache** clears the in-memory results and cancels active generation.
 
@@ -48,4 +52,4 @@ Set `codeSubtitle.outputLanguage` to a language tag such as `ja` or `en`. Set `c
 
 This preview requires desktop VS Code 1.135 or newer. Long lines and narrow editors can clip line-end decorations. Display readability, screen-reader behavior, live-model quality, and performance still require manual acceptance. Notebook, browser, and Remote environments are outside initial validation.
 
-This is a locally packaged development preview with a placeholder publisher. It has not been published to the VS Code Marketplace yet. The source is available under the [MIT License](https://github.com/shm11C3/code-subtitle/blob/main/LICENSE).
+This is an early preview. The source is available under the [MIT License](https://github.com/shm11C3/code-subtitle/blob/main/LICENSE).

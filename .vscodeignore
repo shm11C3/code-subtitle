@@ -4,6 +4,7 @@
 .claude/**
 .test-host/**
 .eval-host/**
+.demo-host/**
 node_modules/**
 src/**
 test/**

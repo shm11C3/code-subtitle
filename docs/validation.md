@@ -110,6 +110,22 @@ The visual run was not completed in this session because the macOS desktop was l
 
 ## Acceptance still requiring direct observation
 
+### Marketplace preparation checks (2026-09-13)
+
+On `feat/prepare-marketplace-publication`, based on `52698c4`, type checking, lint, formatting, all 133 node tests (including four release-policy tests), and `actionlint` passed. A real VS Code host passed renderer, public-ID activation, non-Copilot provider, side-by-side diff, and built-in semantic smoke checks after changing the publisher to `Shm11C3`.
+
+The generated `code-subtitle-0.1.0.vsix` contains the public publisher, MIT manifest metadata, the unchanged MIT license text, the Marketplace README, and the Marketplace pre-release property. Archive inspection confirmed that tests, demo fixtures, and scripts are excluded. Packaging bypasses for missing repository and license are removed.
+
+After separating release channels from version numbers, all 134 tests (including five release-policy tests), type checking, lint, formatting, packaging, and `actionlint` passed. In a temporary copy, tag validation and actual VSIX packaging verified `0.3.0` with `releaseChannel: "stable"` and `0.2.0` with `releaseChannel: "pre-release"`, including the GitHub channel output and presence or absence of the Marketplace pre-release property. Missing and invalid channels are rejected. The initial manifest remains `0.1.0` / `pre-release`.
+
+After adding the approved 128 × 128 PNG at `resources/icon.png`, publication validation passed. Repackaging confirmed that the manifest references the icon, its bytes are included unchanged, and the VSIX declares the Marketplace icon asset. No Marketplace publication, tag push, or live-model acceptance was performed. See the [release checklist](releasing.md).
+
+On 2026-09-13, a dedicated `Code Subtitle Recording` profile in the existing VS Code 1.135.0 macOS arm64 process resolved the native capture tool's separate-process targeting limitation. The real extension and the fixed-response demo provider were loaded as development extensions, with installed extensions disabled. The test-only provider supports Restricted Mode and does not make network requests.
+
+The [10-second GIF](media/code-subtitle-demo.gif) shows code selection, **Show Subtitle** through the Command Palette, partial and completed decoration text, and `Esc` clearing the subtitle. Captured editor tabs remained clean. The GIF uses a 1000 × 370 crop at 15 fps, preserves the fixed-response disclosure, and adjusts pauses for readability. Key frames were inspected after GIF encoding. The default `Ctrl+Alt+E` shortcut could not be reliably delivered by native automation, so this recording does not validate it. This is a UI demonstration with scripted text and streaming delay, not live-model quality, end-to-end latency, or broad visual acceptance.
+
+### Remaining product acceptance
+
 - Inline failure guidance readability and the `Shift+Alt+E` binding on Windows/Linux.
 
 - Subtitle readability on long lines, narrow splits, wrapped lines, diff editors, themes, and zoom.

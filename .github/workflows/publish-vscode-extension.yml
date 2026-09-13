@@ -1,0 +1,52 @@
+name: Publish VS Code Extension
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marketplace-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Validate version and release channel
+        id: release
+        run: node scripts/release.cjs validate
+      - run: npm ci
+      - run: npm run check
+      - run: npm run lint
+      - run: npm run fmt:check
+      - run: npm test
+      - name: Package the release
+        run: npm run package
+      - name: Publish the checked VSIX
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          PACKAGE_PATH: ${{ steps.release.outputs.package_path }}
+          RELEASE_CHANNEL: ${{ steps.release.outputs.channel }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "Set the VSCE_PAT repository secret for publisher Shm11C3."
+            exit 1
+          fi
+          args=(--packagePath "$PACKAGE_PATH")
+          if [ "$RELEASE_CHANNEL" = "pre-release" ]; then
+            args+=(--pre-release)
+          fi
+          npx --no-install vsce publish "${args[@]}"

@@ -1,13 +1,30 @@
 {
   "name": "code-subtitle",
   "displayName": "Code Subtitle",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Understand selected code with short, temporary subtitles in your editor.",
   "categories": [
     "Other"
   ],
-  "publisher": "code-subtitle-local",
+  "keywords": [
+    "code explanation",
+    "code reading",
+    "code review",
+    "language model",
+    "subtitles",
+    "translation"
+  ],
+  "homepage": "https://github.com/shm11C3/code-subtitle#readme",
+  "bugs": {
+    "url": "https://github.com/shm11C3/code-subtitle/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shm11C3/code-subtitle.git"
+  },
+  "publisher": "Shm11C3",
   "main": "./dist/src/extension.js",
   "scripts": {
     "build": "tsc -p .",
@@ -16,11 +33,12 @@
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "test": "npm run build && node --test dist/test/*.test.js",
+    "test": "npm run build && node --test dist/test/*.test.js test/release.test.cjs",
     "test:host": "npm run build && node scripts/test-host.cjs",
     "eval:live": "npm run build && node scripts/eval-live.cjs",
     "vscode:prepublish": "npm run build",
-    "package": "vsce package --allow-missing-repository --skip-license --readme-path docs/extension-readme.md --out code-subtitle-0.0.1.vsix"
+    "package": "node scripts/release.cjs package",
+    "demo": "npm run build && node scripts/demo.cjs"
   },
   "devDependencies": {
     "@types/node": "26.5.1",
@@ -109,6 +127,11 @@
   "extensionKind": [
     "ui"
   ],
+  "icon": "resources/icon.png",
+  "galleryBanner": {
+    "color": "#101827",
+    "theme": "dark"
+  },
   "preview": true,
   "engines": {
     "vscode": "^1.135.0"
@@ -120,5 +143,6 @@
     "virtualWorkspaces": {
       "supported": false
     }
-  }
+  },
+  "releaseChannel": "pre-release"
 }

@@ -20,9 +20,9 @@ npm test
 npm run package
 ```
 
-In VS Code, run **Extensions: Install from VSIX…** and choose `code-subtitle-0.0.1.vsix`. To run the extension from source, open the repository in VS Code and launch **Run Code Subtitle** from Run and Debug. See the [development guide](docs/development.md) for host smoke tests and manual acceptance.
+In VS Code, run **Extensions: Install from VSIX…** and choose `code-subtitle-0.1.0.vsix`. To run the extension from source, open the repository in VS Code and launch **Run Code Subtitle** from Run and Debug. See the [development guide](docs/development.md) for host smoke tests and manual acceptance.
 
-This preview uses a local publisher ID and is not published to the VS Code Marketplace yet. The source is available under the [MIT License](LICENSE).
+The first Marketplace release is being prepared as `Shm11C3.code-subtitle` version `0.1.0` on the pre-release channel. Packaging locally does not publish it. The source is available under the [MIT License](LICENSE).
 
 ## Why Code Subtitle
 
@@ -35,6 +35,10 @@ This preview uses a local publisher ID and is not published to the VS Code Marke
 The target is the small question that interrupts code reading: “What boundary does this guard protect?” or “What does this comment require?” Code Subtitle keeps that question beside the code and returns one grounded insight instead of opening a separate chat thread.
 
 ## Example
+
+![Select code, run Show Subtitle, and press Esc to dismiss the subtitle.](docs/media/code-subtitle-demo.gif)
+
+Recorded in VS Code using a fixed-response demo provider. The animation shows the real extension UI; response text and timing are illustrative, not a live-model quality or speed measurement.
 
 Select the code or comment you want to understand, or place the cursor on the line in question. Run **Code Subtitle: Show Subtitle** and continue reading while the insight streams beside the code.
 
@@ -125,6 +129,7 @@ Speed is measured primarily by TTFE (Time To First Explanation: the time until t
 - [Minimal design](docs/minimal-design.md): APIs, rendering approach, cancellation, caching, privacy, and performance measurement.
 - [Product principles](docs/product-principles.md): principles for deciding features and specifications.
 - [Output quality](docs/output-quality.md): examples and evaluation criteria for OSS reading and human code review.
+- [Release guide](docs/releasing.md): version channels, Marketplace publishing, and first-release acceptance.
 - [Development guide](docs/development.md): local setup, deterministic tests, extension-host smoke tests, and manual acceptance.
 
 Bug reports and focused feature proposals are welcome in [GitHub Issues](https://github.com/shm11C3/code-subtitle/issues). Please include the VS Code version, platform, language mode, model, and whether semantic context was enabled; do not include private source code or prompts.

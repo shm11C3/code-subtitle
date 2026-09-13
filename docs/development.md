@@ -9,7 +9,7 @@ npm test
 npm run package
 ```
 
-The package command creates `code-subtitle-0.0.1.vsix`. Its publisher ID is a local placeholder, and packaging does not publish it to a marketplace. The repository is released under the [MIT License](../LICENSE); a public publisher identity and Marketplace release are still separate decisions.
+The package command creates `code-subtitle-<version>.vsix` from `package.json` (currently `code-subtitle-0.1.0.vsix`). The repository's `releaseChannel` field explicitly selects `pre-release` or `stable`, independently of the version number and the `preview` label. The publisher is `Shm11C3`, and the source is under the [MIT License](../LICENSE). Packaging does not publish anything. See the [release guide](releasing.md).
 
 Open this repository in VS Code and launch **Run Code Subtitle** from Run and Debug to try the extension in a development host. Real generation requires an available language model from VS Code and whatever consent or configuration its provider requires. The extension makes no generation request until **Show Subtitle** is invoked with a valid selection.
 

@@ -6,7 +6,7 @@ The user subsequently authorized [bounded semantic context](semantic-context-pla
 
 ## Outcome
 
-A locally installable desktop VS Code extension that turns one explicit selection into a short, streamed subtitle without editing the document or interrupting reading. The existing product overview and minimal design define the scope. Publishing to a marketplace and selecting a public publisher identity are separate release decisions.
+A locally installable desktop VS Code extension that turns one explicit selection into a short, streamed subtitle without editing the document or interrupting reading. The existing product overview and minimal design define the scope. Marketplace preparation is tracked in [the release guide](releasing.md).
 
 ## Architecture
 
@@ -58,4 +58,4 @@ Use public module behavior with controlled provider streams and a controllable c
 
 ## Approved implementation scope
 
-The user approved the command interface (`show`, `dismiss`, `clearCache`, and `chooseModel`), one-line subtitle MVP, and the priority behaviors above. Implementation is delegated by the roles above. Rendering acceptance remains a gate for shipping the experience. The MIT license covers the current source; do not imply Marketplace publication or a public publisher identity before those release decisions are complete.
+The user approved the command interface (`show`, `dismiss`, `clearCache`, and `chooseModel`), one-line subtitle MVP, and the priority behaviors above. Implementation is delegated by the roles above. Rendering acceptance remains a gate for shipping the experience. The MIT license covers the current source. Marketplace preparation now uses publisher `Shm11C3`; see [the release guide](releasing.md) for remaining release acceptance.
