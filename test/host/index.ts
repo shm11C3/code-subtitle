@@ -69,7 +69,7 @@ export async function run(): Promise<void> {
   assert.equal(document.getText(), before.text);
   assert.equal(document.version, before.version);
   console.log("Code Subtitle renderer smoke: passed (no model requests).");
-  const extension = vscode.extensions.getExtension("code-subtitle-local.code-subtitle");
+  const extension = vscode.extensions.getExtension("Shm11C3.code-subtitle");
   assert.ok(extension, "The development extension is registered.");
   await extension.activate();
   const commands = await vscode.commands.getCommands(true);

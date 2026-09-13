@@ -1,0 +1,26 @@
+{
+  "name": "code-subtitle-demo-provider",
+  "displayName": "Code Subtitle Demo Provider (fixed response)",
+  "version": "0.0.0",
+  "publisher": "code-subtitle-tests",
+  "main": "extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "code-subtitle-demo",
+        "displayName": "Demo (fixed response)"
+      }
+    ]
+  },
+  "activationEvents": [
+    "*"
+  ],
+  "engines": {
+    "vscode": "^1.135.0"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  }
+}
